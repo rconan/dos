@@ -10,3 +10,6 @@ edition = "2018"
 gmt-controllers = { path="../gmt-controllers" }
 fem = { path="../fem" }
 serde-pickle = "0.6.2"
+nalgebra = "0.24.1"
+anyhow = "1.0.38"
+serde = { version = "1.0.123", features = ["derive"] }
