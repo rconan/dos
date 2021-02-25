@@ -479,7 +479,7 @@ impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
                     IO::OSSAzDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSAzDriveF {
                             data: Some(
-                                Vec::<f64>::from(&self.oss_az_drive_f)[pos..pos + n].to_vec(),
+                                Vec::<f64>::from(&self.oss_az_drive_f)[..*n].to_vec(),
                             ),
                         }));
                         pos += n;
@@ -488,7 +488,7 @@ impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
                     IO::OSSElDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSElDriveF {
                             data: Some(
-                                Vec::<f64>::from(&self.oss_el_drive_f)[pos..pos + n].to_vec(),
+                                Vec::<f64>::from(&self.oss_el_drive_f)[..*n].to_vec(),
                             ),
                         }));
                         pos += n;
@@ -497,7 +497,7 @@ impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
                     IO::OSSGIRDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSGIRDriveF {
                             data: Some(
-                                Vec::<f64>::from(&self.oss_gir_drive_f)[pos..pos + n].to_vec(),
+                                Vec::<f64>::from(&self.oss_gir_drive_f)[..*n].to_vec(),
                             ),
                         }));
                         pos += n;
