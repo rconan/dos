@@ -1,4 +1,4 @@
-use dos::{jar::*, DOSDiscreteModalSolver, WindLoading, DOS};
+use dos::{io::jar::*, DOSDiscreteModalSolver, WindLoading, DOS};
 use fem;
 use fem::{DiscreteModalSolver, WindLoads, FEM};
 use gmt_controllers::mount;
@@ -35,11 +35,11 @@ fn main() -> Result<(), String> {
 
     let tic = Timer::tic();
     println!("Loading FEM ...");
-    let mut fem = FEM::from_pickle("data/fem_current/modal_state_space_model_2ndOrder.pkl").unwrap();
+    let mut fem = FEM::from_pickle("data/modal_state_space_model_2ndOrder_v1.pkl").unwrap();
     tic.print_toc();
     println!("{}", fem);
-    fem.keep_inputs(&[0,1,2,4,5,6,7,9,23,25])
-        .keep_outputs(&[0, 1, 2, 10, 25]);
+    fem.keep_inputs(&[1, 2, 3, 4, 5, 6, 8, 9, 10, 13])
+        .keep_outputs(&[0, 1, 2, 5, 24]);
     println!("{}", fem);
 
     let wind_loads = vec![
@@ -53,7 +53,7 @@ fn main() -> Result<(), String> {
     ];
     let fem_inputs = vec![
         OSSCRING6F::new(),
-        MCM2TE6F::new(),
+        OSSTopEnd6F::new(),
         OSSTruss6F::new(),
         OSSGIR6F::new(),
         OSSCellLcl6F::new(),
