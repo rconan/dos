@@ -1,13 +1,14 @@
-use core::fmt::Debug;
+pub mod io;
+use io::IO;
+
 use fem;
 use gmt_controllers as ctrlr;
 use nalgebra as na;
-use serde::Serialize;
 
 /// DOS interface
-pub trait DOS<T> {
+pub trait DOS<T, U> {
     /// Returns a `Vec` of `IO<Vec<f64>>`
-    fn outputs(&mut self, tags: &[IO<T>]) -> Result<Vec<IO<Vec<f64>>>, String>;
+    fn outputs(&mut self, tags: &[IO<T>]) -> Result<Vec<IO<U>>, String>;
     /// Takes in a `Vec` of `IO<Vec<f64>>`
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String>;
     fn step(&mut self) -> Result<&mut Self, String>
@@ -20,143 +21,7 @@ pub trait DOS<T> {
     }
 }
 
-macro_rules! build_io {
-    ($($variant:ident),+) => {
-        /// DOS inputs/ouputs
-        #[derive(Debug,Clone,Serialize)]
-        pub enum IO<T> {
-            $($variant{data: Option<T>}),+
-        }
-        impl IO<usize> {
-            /// Assign `n` to `IO` `data`
-            fn assign(&mut self, n: usize) {
-                match self {
-                    $(IO::$variant{ data: values} => {*values=Some(n);}),+
-                }
-            }
-        }
-        impl<T> From<IO<T>> for Option<T> {
-            /// Converts a `IO<T>` into an `Option<T>`
-            fn from(io: IO<T>) -> Self {
-                match io {
-                    $(IO::$variant{ data: values} => values),+
-                }
-            }
-        }
-        impl<T: Debug> From<IO<T>> for Result<T,String> {
-            /// Converts a `IO<T>` into an `Option<T>`
-            fn from(io: IO<T>) -> Self {
-                match io {
-                    $(IO::$variant{ data: values} => values.ok_or_else(|| "Data missing".to_owned())),+
-                }
-            }
-        }
-        impl<T: Clone> From<&IO<T>> for Option<T> {
-            /// Converts a `&IO<T>` into an `Option<T>`
-            fn from(io: &IO<T>) -> Self {
-                match io {
-                    $(IO::$variant{ data: values} => values.as_ref().cloned()),+
-                }
-            }
-        }
-        impl From<(&IO<usize>,Vec<f64>)> for IO<Vec<f64>> {
-            /// Converts a `(&IO<usize>,Vec<f64>)` into an `IO<Vec<f64>>`
-            fn from((io,v): (&IO<usize>,Vec<f64>)) -> Self {
-                match io {
-                    $(IO::$variant{ data: _} => IO::$variant{ data: Some(v)}),+
-                }
-            }
-        }
-    };
-}
-macro_rules! io_match_fem {
-    (inputs: ($($inputs_variant:ident),+), outputs: ($($outputs_variant:ident),+)) => {
-        impl<T: Debug> IO<T> {
-            /// Matches a FEM input to a DOS `IO` returning the FEM input value
-            fn match_fem_inputs(&self, fem_inputs: &fem::fem_io::Inputs) -> Option<Vec<fem::IO>> {
-                match (self,fem_inputs) {
-                    $((IO::$inputs_variant{data: _}, fem::fem_io::Inputs::$inputs_variant(v)) => {
-                        Some(v.clone())},)+
-                    (_, _) => None,
-                }
-            }
-            /// Matches a FEM output to a DOS `IO` returning the FEM output value
-            fn match_fem_outputs(&self, fem_outputs: &fem::fem_io::Outputs) -> Option<Vec<fem::IO>> {
-                match (self,fem_outputs) {
-                    $((IO::$outputs_variant{data: _}, fem::fem_io::Outputs::$outputs_variant(v)) => Some(v.clone()),)+
-                        (_, _) => None,
-                }
-            }
-        }
-    };
-}
-macro_rules! io_match_wind_loads {
-    ($($variant:ident),+) => {
-        impl<T> IO<T> {
-            /// Matches a wind loads to a DOS `IO` returning the wind load value as an iterator over the first `n` elements
-            fn data(&self, wind_loads: &fem::wind_loads::Loads) -> Option<std::vec::IntoIter<Vec<f64>>> {
-                match (self,wind_loads) {
-                    $((IO::$variant{data: _}, fem::wind_loads::Loads::$variant(v)) => Some(v.clone().into_iter()),)+
-                        (_, _) => None,
-                }
-            }
-            /// Matches a wind loads to a DOS `IO` returning the wind load value as an iterator
-            fn ndata(&self, wind_loads: &fem::wind_loads::Loads, n: usize) -> Option<std::vec::IntoIter<Vec<f64>>> {
-                match (self,wind_loads) {
-                    $((IO::$variant{data: _}, fem::wind_loads::Loads::$variant(v)) => Some(v[..n].to_owned().into_iter()),)+
-                        (_, _) => None,
-                }
-            }
-        }
-    };
-}
 
-build_io!(
-    OSSTopEnd6F,
-    OSSTruss6F,
-    OSSGIR6F,
-    OSSTopEnd6D,
-    OSSTruss6D,
-    OSSGIR6D,
-    OSSCRING6F,
-    OSSCellLcl6F,
-    OSSM1Lcl6F,
-    MCM2Lcl6F,
-    OSSM1Lcl,
-    MCM2Lcl6D,
-    CMD,
-    OSSAzDriveF,
-    OSSElDriveF,
-    OSSGIRDriveF,
-    OSSAzDriveD,
-    OSSElDriveD,
-    OSSGIRDriveD
-);
-io_match_fem!(
-    inputs:
-        (
-            OSSTopEnd6F,
-            OSSTruss6F,
-            OSSGIR6F,
-            OSSCRING6F,
-            OSSCellLcl6F,
-            OSSM1Lcl6F,
-            MCM2Lcl6F,
-            OSSAzDriveF,
-            OSSElDriveF,
-            OSSGIRDriveF
-        ),
-    outputs: (OSSAzDriveD, OSSElDriveD, OSSGIRDriveD, OSSM1Lcl, MCM2Lcl6D)
-);
-io_match_wind_loads!(
-    OSSTopEnd6F,
-    OSSTruss6F,
-    OSSGIR6F,
-    OSSCRING6F,
-    OSSCellLcl6F,
-    OSSM1Lcl6F,
-    MCM2Lcl6F
-);
 
 /// FEM to DOS interface
 trait DOSFEM {
@@ -284,7 +149,7 @@ impl DOSDiscreteModalSolver for fem::DiscreteModalSolver {
         })
     }
 }
-impl DOS<usize> for fem::DiscreteModalSolver {
+impl DOS<usize, Vec<f64>> for fem::DiscreteModalSolver {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         self.u = data
             .into_iter()
@@ -379,7 +244,7 @@ impl WindLoading {
             .and(Ok(this))
     }
 }
-impl DOS<()> for WindLoading {
+impl DOS<(), Vec<f64>> for WindLoading {
     fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         unimplemented!()
     }
@@ -396,6 +261,15 @@ impl DOS<()> for WindLoading {
                     ),
                 }),
                 IO::OSSTopEnd6F { data: _ } => Ok(IO::OSSTopEnd6F {
+                    data: Some(
+                        self.oss_topend_6f
+                            .as_mut()
+                            .ok_or_else(|| "OSSTopEnd6F not available")?
+                            .next()
+                            .ok_or_else(|| "Empty")?,
+                    ),
+                }),
+                IO::MCM2TE6F { data: _ } => Ok(IO::MCM2TE6F {
                     data: Some(
                         self.oss_topend_6f
                             .as_mut()
@@ -455,20 +329,46 @@ impl DOS<()> for WindLoading {
     }
 }
 // Mount
-impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
+impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
-        data.into_iter()
-            .find_map(|io| match io {
+        if data.into_iter().fold(4, |mut a, io| {
+            match io {
                 IO::CMD { data: Some(values) } => {
-                    self.cmd[0] = values[0];
-                    self.cmd[1] = values[1];
-                    self.cmd[2] = values[2];
-                    Some(())
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.cmd[k] = v;
+                    }
+                    a -= 1;
                 }
-                _ => None,
-            })
-            .and(Some(self))
-            .ok_or_else(|| "Missing CMD DOS IO for mount drives controller".to_owned())
+                IO::OSSAzDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_az_drive_d[k] = v;
+                    }
+                    a -= 1;
+                }
+                IO::OSSElDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_el_drive_d[k] = v;
+                    }
+                    a -= 1;
+                }
+                IO::OSSGIRDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_gir_drive_d[k] = v;
+                    }
+                    a -= 1;
+                }
+                _ => (),
+            }
+            if a == 0 {
+                return a;
+            }
+            a
+        }) == 0
+        {
+            Ok(self)
+        } else {
+            Err("Either mount drive controller CMD, OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".to_owned())
+        }
     }
     fn outputs(&mut self, tags: &[IO<usize>]) -> Result<Vec<IO<Vec<f64>>>, String> {
         let mut pos = 0;
@@ -478,34 +378,30 @@ impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
                 match t {
                     IO::OSSAzDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSAzDriveF {
-                            data: Some(
-                                Vec::<f64>::from(&self.oss_az_drive_f)[..*n].to_vec(),
-                            ),
+                            data: Some(Vec::<f64>::from(&self.oss_az_drive_f)[..*n].to_vec()),
                         }));
                         pos += n;
                         check -= 1;
                     }
                     IO::OSSElDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSElDriveF {
-                            data: Some(
-                                Vec::<f64>::from(&self.oss_el_drive_f)[..*n].to_vec(),
-                            ),
+                            data: Some(Vec::<f64>::from(&self.oss_el_drive_f)[..*n].to_vec()),
                         }));
                         pos += n;
                         check -= 1;
                     }
                     IO::OSSGIRDriveF { data: Some(n) } => {
                         a.push(Ok(IO::OSSGIRDriveF {
-                            data: Some(
-                                Vec::<f64>::from(&self.oss_gir_drive_f)[..*n].to_vec(),
-                            ),
+                            data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)[..*n].to_vec()),
                         }));
                         pos += n;
                         check -= 1;
                     }
                     _ => (),
                 }
-                if a.len()==3 {return a}
+                if a.len() == 3 {
+                    return a;
+                }
                 a
             })
             .into_iter()
@@ -546,7 +442,7 @@ impl<'a> DOS<usize> for ctrlr::mount::drives::Controller<'a> {
             .collect::Vec<IO<Vec<f64>>>()*/
     }
 }
-impl<'a> DOS<usize> for ctrlr::mount::controller::Controller<'a> {
+impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::controller::Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {
@@ -570,7 +466,9 @@ impl<'a> DOS<usize> for ctrlr::mount::controller::Controller<'a> {
                 }
                 _ => (),
             }
-            if a==0 {return a}
+            if a == 0 {
+                return a;
+            }
             a
         }) == 0
         {
@@ -607,7 +505,7 @@ impl<'a> DOS<usize> for ctrlr::mount::controller::Controller<'a> {
     fn outputs(&mut self, tags: &[IO<usize>]) -> Result<Vec<IO<Vec<f64>>>, String> {
         tags.iter()
             .find_map(|t| match t {
-                IO::CMD { data: _ } => Some(IO::CMD {
+                IO::CMD { .. } => Some(IO::CMD {
                     data: Some(Vec::<f64>::from(&self.cmd)),
                 }),
                 _ => None,
