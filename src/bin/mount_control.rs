@@ -96,6 +96,7 @@ fn main() -> Result<(), String> {
     let mount_cmd = vec![CMD::size(3)];
     let mut mount_drives_cmd: Option<Vec<IO<Vec<f64>>>> = None;
     while let Ok(mut fem_forces) = wind_loading.outputs(&wind_loads) {
+        // Mount Drives
         fem_forces.append(
             &mut mnt_drives
                 .inputs(mount_drives_cmd.unwrap_or( vec![
@@ -107,16 +108,18 @@ fn main() -> Result<(), String> {
                 .step()?
                 .outputs(&mnt_drivers)?,
         );
-        u.push(fem_forces.clone());
+        u.push(fem_forces.clone()); // log
+        // FEM
         let ys = dms.inputs(fem_forces)?.step()?.outputs(&fem_outputs)?;
+        // Mount Controller
         let mut cmd = mnt_ctrl
             .inputs(ys[2..].to_vec())?
             .step()?
             .outputs(&mount_cmd)?;
         cmd.extend_from_slice(&ys[2..]);
         mount_drives_cmd = Some(cmd);
-        y.push(ys);
-        y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone());
+        y.push(ys); // log
+        y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
     }
     tic.print_toc();
 
