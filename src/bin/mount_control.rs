@@ -74,13 +74,9 @@ fn main() -> Result<(), String> {
     let m2 = MCM2Lcl6D::new();
     let mut fem_outputs = vec![m1, m2];
     fem_outputs.extend_from_slice(&mnt_encoders);
-    let mut dms = DiscreteModalSolver::new(2e3, &mut fem, &fem_inputs, &mut fem_outputs)?;
-    //    println!("m12: {:#?}", &fem_outputs);
 
-    //    let mut winds = WindLoads::from_pickle("data/trimmer_finest_mesh_20Hz.neu.pkl").unwrap();
+    let mut dms = DiscreteModalSolver::new(2e3, &mut fem, &fem_inputs, &mut fem_outputs)?;
     let mut wind_loading = WindLoading::new(&wind, &wind_loads).unwrap();
-    //let wind_loads = winds.to_ios(wind_loads);
-    //println!("wind loads #: {}",wind_loads.len());
 
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
@@ -115,7 +111,7 @@ fn main() -> Result<(), String> {
             .inputs(fem_forces)?
             .step()?
             .outputs(&fem_outputs)?
-            .ok_or("FEM outputs is empty")?;
+            .ok_or("FEM output is empty")?;
         // Mount Controller
         mount_drives_cmd = mnt_ctrl
             .inputs(ys[2..].to_vec())?
