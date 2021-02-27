@@ -1,4 +1,4 @@
-use dos::{io::jar::*, DOSDiscreteModalSolver, WindLoading, DOS};
+use dos::{io::jar::*, DOSDiscreteModalSolver, WindLoading, DOS, io::IO};
 use fem;
 use fem::{DiscreteModalSolver, WindLoads, FEM};
 use gmt_controllers::mount;
@@ -35,7 +35,7 @@ fn main() -> Result<(), String> {
 
     let tic = Timer::tic();
     println!("Loading FEM ...");
-    let mut fem = FEM::from_pickle("data/modal_state_space_model_2ndOrder_v1.pkl").unwrap();
+    let mut fem = FEM::from_pickle("data/mt_fsm/modal_state_space_model_2ndOrder.pkl").unwrap();
     tic.print_toc();
     println!("{}", fem);
     fem.keep_inputs(&[1, 2, 3, 4, 5, 6, 8, 9, 10, 13])
@@ -90,30 +90,33 @@ fn main() -> Result<(), String> {
     println!("Sample #: {}", wind.n_sample.unwrap());
     println!("Running model ...");
     let tic = Timer::tic();
+    let mut u = vec![];
     let mut y = vec![];
     let mut y_mnt_drive = vec![];
     let mount_cmd = vec![CMD::size(3)];
-    let mount_drives_cmd = vec![
-        CMD::with(vec![0f64; 3]),
-        OSSAzDriveD::with(vec![0f64; 8]),
-        OSSElDriveD::with(vec![0f64; 8]),
-        OSSGIRDriveD::with(vec![0f64; 4]),
-    ];
+    let mut mount_drives_cmd: Option<Vec<IO<Vec<f64>>>> = None;
     while let Ok(mut fem_forces) = wind_loading.outputs(&wind_loads) {
         fem_forces.append(
             &mut mnt_drives
-                .inputs(mount_drives_cmd.clone())?
+                .inputs(mount_drives_cmd.unwrap_or( vec![
+                    CMD::with(vec![0f64; 3]),
+                    OSSAzDriveD::with(vec![0f64; 8]),
+                    OSSElDriveD::with(vec![0f64; 8]),
+                    OSSGIRDriveD::with(vec![0f64; 4]),
+                ]))?
                 .step()?
                 .outputs(&mnt_drivers)?,
         );
+        u.push(fem_forces.clone());
         let ys = dms.inputs(fem_forces)?.step()?.outputs(&fem_outputs)?;
-        let mut mount_drives_cmd = mnt_ctrl
+        let mut cmd = mnt_ctrl
             .inputs(ys[2..].to_vec())?
             .step()?
             .outputs(&mount_cmd)?;
-        mount_drives_cmd.extend_from_slice(&ys[2..]);
+        cmd.extend_from_slice(&ys[2..]);
+        mount_drives_cmd = Some(cmd);
         y.push(ys);
-        y_mnt_drive.push(mount_drives_cmd.clone());
+        y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone());
     }
     tic.print_toc();
 
@@ -128,6 +131,6 @@ fn main() -> Result<(), String> {
         .sqrt();
     println!("Y ERR. : {:e}", y_err);*/
     let mut f = File::create("data/wind_loads.pkl").unwrap();
-    pkl::to_writer(&mut f, &[y, y_mnt_drive], true).unwrap();
+    pkl::to_writer(&mut f, &[u, y, y_mnt_drive], true).unwrap();
     Ok(())
 }
