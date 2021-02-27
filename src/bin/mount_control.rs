@@ -1,4 +1,4 @@
-use dos::{io::jar::*, DOSDiscreteModalSolver, WindLoading, DOS, io::IO};
+use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoading, DOS};
 use fem;
 use fem::{DiscreteModalSolver, WindLoads, FEM};
 use gmt_controllers::mount;
@@ -95,29 +95,36 @@ fn main() -> Result<(), String> {
     let mut y_mnt_drive = vec![];
     let mount_cmd = vec![CMD::size(3)];
     let mut mount_drives_cmd: Option<Vec<IO<Vec<f64>>>> = None;
-    while let Ok(mut fem_forces) = wind_loading.outputs(&wind_loads) {
+    while let Ok(Some(mut fem_forces)) = wind_loading.outputs(&wind_loads) {
         // Mount Drives
-        fem_forces.append(
-            &mut mnt_drives
-                .inputs(mount_drives_cmd.unwrap_or( vec![
-                    CMD::with(vec![0f64; 3]),
-                    OSSAzDriveD::with(vec![0f64; 8]),
-                    OSSElDriveD::with(vec![0f64; 8]),
-                    OSSGIRDriveD::with(vec![0f64; 4]),
-                ]))?
-                .step()?
-                .outputs(&mnt_drivers)?,
-        );
-        u.push(fem_forces.clone()); // log
+        mnt_drives
+            .inputs(mount_drives_cmd.unwrap_or(vec![
+                CMD::with(vec![0f64; 3]),
+                OSSAzDriveD::with(vec![0f64; 8]),
+                OSSElDriveD::with(vec![0f64; 8]),
+                OSSGIRDriveD::with(vec![0f64; 4]),
+            ]))?
+            .step()?
+            .outputs(&mnt_drivers)?
+            .map(|mut x| {
+                fem_forces.append(&mut x);
+            });
+        u.push(fem_forces.clone());
         // FEM
-        let ys = dms.inputs(fem_forces)?.step()?.outputs(&fem_outputs)?;
+        let ys = dms
+            .inputs(fem_forces)?
+            .step()?
+            .outputs(&fem_outputs)?
+            .ok_or("FEM outputs is empty")?;
         // Mount Controller
-        let mut cmd = mnt_ctrl
+        mount_drives_cmd = mnt_ctrl
             .inputs(ys[2..].to_vec())?
             .step()?
-            .outputs(&mount_cmd)?;
-        cmd.extend_from_slice(&ys[2..]);
-        mount_drives_cmd = Some(cmd);
+            .outputs(&mount_cmd)?
+            .and_then(|mut x| {
+                x.extend_from_slice(&ys[2..]);
+                Some(x)
+            });
         y.push(ys); // log
         y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
     }
