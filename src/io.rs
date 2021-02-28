@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use serde::Serialize;
+use super::wind_loads;
 
 macro_rules! build_io {
     ($($variant:ident),+) => {
@@ -92,16 +93,16 @@ macro_rules! io_match_wind_loads {
     ($($variant:ident),+) => {
         impl<T> IO<T> {
             /// Matches a wind loads to a DOS `IO` returning the wind load value as an iterator over the first `n` elements
-            pub fn data(&self, wind_loads: &fem::wind_loads::Loads) -> Option<std::vec::IntoIter<Vec<f64>>> {
+            pub fn data(&self, wind_loads: &wind_loads::Loads) -> Option<std::vec::IntoIter<Vec<f64>>> {
                 match (self,wind_loads) {
-                    $((IO::$variant{..}, fem::wind_loads::Loads::$variant(v)) => Some(v.clone().into_iter()),)+
+                    $((IO::$variant{..}, wind_loads::Loads::$variant(v)) => Some(v.clone().into_iter()),)+
                         (_, _) => None,
                 }
             }
             /// Matches a wind loads to a DOS `IO` returning the wind load value as an iterator
-            pub fn ndata(&self, wind_loads: &fem::wind_loads::Loads, n: usize) -> Option<std::vec::IntoIter<Vec<f64>>> {
+            pub fn ndata(&self, wind_loads: &wind_loads::Loads, n: usize) -> Option<std::vec::IntoIter<Vec<f64>>> {
                 match (self,wind_loads) {
-                    $((IO::$variant{..}, fem::wind_loads::Loads::$variant(v)) => Some(v[..n].to_owned().into_iter()),)+
+                    $((IO::$variant{..}, wind_loads::Loads::$variant(v)) => Some(v[..n].to_owned().into_iter()),)+
                         (_, _) => None,
                 }
             }

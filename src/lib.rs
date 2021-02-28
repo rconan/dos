@@ -1,5 +1,8 @@
 pub mod io;
+pub mod wind_loads;
+
 use io::IO;
+pub use wind_loads::{WindLoads,WindLoading};
 
 use fem;
 use gmt_controllers as ctrlr;
@@ -171,77 +174,7 @@ impl DOS<usize, Vec<f64>> for fem::DiscreteModalSolver {
             .collect()
     }
 }
-/// `WindLoads` to `DOS` Interface
-trait DOSWindLoads {
-    fn to_io(&self, io: &IO<()>) -> Option<std::vec::IntoIter<Vec<f64>>>;
-}
-impl DOSWindLoads for fem::wind_loads::WindLoads {
-    fn to_io(&self, io: &IO<()>) -> Option<std::vec::IntoIter<Vec<f64>>> {
-        match &self.n_sample {
-            Some(n) => self
-                .loads
-                .iter()
-                .filter_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .next(),
-            None => self
-                .loads
-                .iter()
-                .filter_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                .next(),
-        }
-    }
-}
-type WindItem = Option<std::vec::IntoIter<Vec<f64>>>;
-/// Wind loading sources
-#[derive(Default)]
-pub struct WindLoading {
-    pub oss_cring_6f: WindItem,
-    pub oss_topend_6f: WindItem,
-    pub oss_truss_6f: WindItem,
-    pub oss_gir_6f: WindItem,
-    pub oss_cell_lcl_6f: WindItem,
-    pub oss_m1_lcl_6f: WindItem,
-    pub mc_m2_lcl_6f: WindItem,
-}
-impl WindLoading {
-    pub fn new(wind: &fem::wind_loads::WindLoads, tags: &[IO<()>]) -> Result<Self, String> {
-        let mut this = Self::default();
-        tags.into_iter()
-            .map(|t| match t {
-                IO::OSSCRING6F { .. } => {
-                    this.oss_cring_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSTopEnd6F { .. } => {
-                    this.oss_topend_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSTruss6F { .. } => {
-                    this.oss_truss_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSGIR6F { .. } => {
-                    this.oss_gir_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSCellLcl6F { .. } => {
-                    this.oss_cell_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSM1Lcl6F { .. } => {
-                    this.oss_m1_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::MCM2Lcl6F { .. } => {
-                    this.mc_m2_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                _ => Err(format!("Output {:?} do no belong to WindLoading", t)),
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .and(Ok(this))
-    }
-}
+/// Wind loading interface
 impl DOS<(), Vec<f64>> for WindLoading {
     fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         unimplemented!()
