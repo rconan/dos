@@ -208,31 +208,31 @@ impl WindLoading {
         let mut this = Self::default();
         tags.into_iter()
             .map(|t| match t {
-                IO::OSSCRING6F { data: _ } => {
+                IO::OSSCRING6F { .. } => {
                     this.oss_cring_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::OSSTopEnd6F { data: _ } => {
+                IO::OSSTopEnd6F { .. } => {
                     this.oss_topend_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::OSSTruss6F { data: _ } => {
+                IO::OSSTruss6F { .. } => {
                     this.oss_truss_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::OSSGIR6F { data: _ } => {
+                IO::OSSGIR6F { .. } => {
                     this.oss_gir_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::OSSCellLcl6F { data: _ } => {
+                IO::OSSCellLcl6F { .. } => {
                     this.oss_cell_lcl_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::OSSM1Lcl6F { data: _ } => {
+                IO::OSSM1Lcl6F { .. } => {
                     this.oss_m1_lcl_6f = wind.to_io(t);
                     Ok(())
                 }
-                IO::MCM2Lcl6F { data: _ } => {
+                IO::MCM2Lcl6F { .. } => {
                     this.mc_m2_lcl_6f = wind.to_io(t);
                     Ok(())
                 }
@@ -249,7 +249,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
     fn outputs(&mut self, tags: &[IO<()>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
         tags.into_iter()
             .map(|t| match t {
-                IO::OSSCRING6F { data: _ } => Ok(Some(IO::OSSCRING6F {
+                IO::OSSCRING6F { .. } => Ok(Some(IO::OSSCRING6F {
                     data: Some(
                         self.oss_cring_6f
                             .as_mut()
@@ -258,7 +258,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::OSSTopEnd6F { data: _ } => Ok(Some(IO::OSSTopEnd6F {
+                IO::OSSTopEnd6F { .. } => Ok(Some(IO::OSSTopEnd6F {
                     data: Some(
                         self.oss_topend_6f
                             .as_mut()
@@ -267,7 +267,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::MCM2TE6F { data: _ } => Ok(Some(IO::MCM2TE6F {
+                IO::MCM2TE6F { .. } => Ok(Some(IO::MCM2TE6F {
                     data: Some(
                         self.oss_topend_6f
                             .as_mut()
@@ -276,7 +276,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::OSSTruss6F { data: _ } => Ok(Some(IO::OSSTruss6F {
+                IO::OSSTruss6F { .. } => Ok(Some(IO::OSSTruss6F {
                     data: Some(
                         self.oss_truss_6f
                             .as_mut()
@@ -285,7 +285,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::OSSGIR6F { data: _ } => Ok(Some(IO::OSSGIR6F {
+                IO::OSSGIR6F { .. } => Ok(Some(IO::OSSGIR6F {
                     data: Some(
                         self.oss_gir_6f
                             .as_mut()
@@ -294,7 +294,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::OSSCellLcl6F { data: _ } => Ok(Some(IO::OSSCellLcl6F {
+                IO::OSSCellLcl6F { .. } => Ok(Some(IO::OSSCellLcl6F {
                     data: Some(
                         self.oss_cell_lcl_6f
                             .as_mut()
@@ -303,7 +303,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::OSSM1Lcl6F { data: _ } => Ok(Some(IO::OSSM1Lcl6F {
+                IO::OSSM1Lcl6F { .. } => Ok(Some(IO::OSSM1Lcl6F {
                     data: Some(
                         self.oss_m1_lcl_6f
                             .as_mut()
@@ -312,7 +312,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
                             .ok_or_else(|| "Empty")?,
                     ),
                 })),
-                IO::MCM2Lcl6F { data: _ } => Ok(Some(IO::MCM2Lcl6F {
+                IO::MCM2Lcl6F { .. } => Ok(Some(IO::MCM2Lcl6F {
                     data: Some(
                         self.mc_m2_lcl_6f
                             .as_mut()
@@ -327,7 +327,7 @@ impl DOS<(), Vec<f64>> for WindLoading {
     }
 }
 // Mount
-impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
+impl<'a> DOS<(), Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         if data.into_iter().fold(4, |mut a, io| {
             match io {
@@ -368,33 +368,29 @@ impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
             Err("Either mount drive controller CMD, OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".to_owned())
         }
     }
-    fn outputs(&mut self, tags: &[IO<usize>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
-        let mut pos = 0;
+    fn outputs(&mut self, tags: &[IO<()>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
         let mut check = 3;
         tags.iter()
             .fold(
                 Vec::<Result<Option<IO<Vec<f64>>>, String>>::new(),
                 |mut a, t| {
                     match t {
-                        IO::OSSAzDriveF { data: Some(n) } => {
+                        IO::OSSAzDriveF { .. } => {
                             a.push(Ok(Some(IO::OSSAzDriveF {
                                 data: Some(Vec::<f64>::from(&self.oss_az_drive_f)),
                             })));
-                            pos += n;
                             check -= 1;
                         }
-                        IO::OSSElDriveF { data: Some(n) } => {
+                        IO::OSSElDriveF { .. } => {
                             a.push(Ok(Some(IO::OSSElDriveF {
                                 data: Some(Vec::<f64>::from(&self.oss_el_drive_f)),
                             })));
-                            pos += n;
                             check -= 1;
                         }
-                        IO::OSSGIRDriveF { data: Some(n) } => {
+                        IO::OSSGIRDriveF { ..} => {
                             a.push(Ok(Some(IO::OSSGIRDriveF {
                                 data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)),
                             })));
-                            pos += n;
                             check -= 1;
                         }
                         _ => (),
@@ -443,7 +439,7 @@ impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
             .collect::Vec<IO<Vec<f64>>>()*/
     }
 }
-impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::controller::Controller<'a> {
+impl<'a> DOS<(), Vec<f64>> for ctrlr::mount::controller::Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {
@@ -503,7 +499,7 @@ impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::controller::Controller<'a> {
             .collect::<Result<(), String>>()
             .and(Ok(self))*/
     }
-    fn outputs(&mut self, tags: &[IO<usize>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+    fn outputs(&mut self, tags: &[IO<()>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
         tags.iter()
             .find_map(|t| match t {
                 IO::CMD { .. } => Some(IO::CMD {

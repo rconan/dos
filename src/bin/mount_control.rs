@@ -51,29 +51,22 @@ fn main() -> Result<(), String> {
         OSSM1Lcl6F::new(),
         MCM2Lcl6F::new(),
     ];
-    let fem_inputs = vec![
-        OSSCRING6F::new(),
-        OSSTopEnd6F::new(),
-        OSSTruss6F::new(),
-        OSSGIR6F::new(),
-        OSSCellLcl6F::new(),
-        OSSM1Lcl6F::new(),
-        MCM2Lcl6F::new(),
-        OSSAzDriveF::new(),
-        OSSElDriveF::new(),
-        OSSGIRDriveF::new(),
-    ];
-    let mnt_drivers = vec![
-        OSSAzDriveF::size(8),
-        OSSElDriveF::size(8),
-        OSSGIRDriveF::size(4),
-    ];
+    let mnt_drivers = vec![OSSAzDriveF::new(), OSSElDriveF::new(), OSSGIRDriveF::new()];
     let mnt_encoders = vec![OSSAzDriveD::new(), OSSElDriveD::new(), OSSGIRDriveD::new()];
 
     let m1 = OSSM1Lcl::new();
     let m2 = MCM2Lcl6D::new();
-    let mut fem_outputs = vec![m1, m2];
-    fem_outputs.extend_from_slice(&mnt_encoders);
+
+    let fem_inputs: Vec<_> = wind_loads
+        .iter()
+        .chain(mnt_drivers.iter())
+        .cloned()
+        .collect();
+    let mut fem_outputs: Vec<_> = vec![m1, m2]
+        .iter()
+        .chain(mnt_encoders.iter())
+        .cloned()
+        .collect();
 
     let mut dms = DiscreteModalSolver::new(2e3, &mut fem, &fem_inputs, &mut fem_outputs)?;
     let mut wind_loading = WindLoading::new(&wind, &wind_loads).unwrap();
@@ -81,16 +74,17 @@ fn main() -> Result<(), String> {
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
 
-    println!("MNT CTRL: {:#?}", mnt_ctrl.cmd);
-
     println!("Sample #: {}", wind.n_sample.unwrap());
     println!("Running model ...");
     let tic = Timer::tic();
+
     let mut u = vec![];
     let mut y = vec![];
     let mut y_mnt_drive = vec![];
-    let mount_cmd = vec![CMD::size(3)];
+
+    let mount_cmd = vec![CMD::new()];
     let mut mount_drives_cmd: Option<Vec<IO<Vec<f64>>>> = None;
+
     while let Ok(Some(mut fem_forces)) = wind_loading.outputs(&wind_loads) {
         // Mount Drives
         mnt_drives
