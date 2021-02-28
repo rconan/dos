@@ -378,21 +378,21 @@ impl<'a> DOS<usize, Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
                     match t {
                         IO::OSSAzDriveF { data: Some(n) } => {
                             a.push(Ok(Some(IO::OSSAzDriveF {
-                                data: Some(Vec::<f64>::from(&self.oss_az_drive_f)[..*n].to_vec()),
+                                data: Some(Vec::<f64>::from(&self.oss_az_drive_f)),
                             })));
                             pos += n;
                             check -= 1;
                         }
                         IO::OSSElDriveF { data: Some(n) } => {
                             a.push(Ok(Some(IO::OSSElDriveF {
-                                data: Some(Vec::<f64>::from(&self.oss_el_drive_f)[..*n].to_vec()),
+                                data: Some(Vec::<f64>::from(&self.oss_el_drive_f)),
                             })));
                             pos += n;
                             check -= 1;
                         }
                         IO::OSSGIRDriveF { data: Some(n) } => {
                             a.push(Ok(Some(IO::OSSGIRDriveF {
-                                data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)[..*n].to_vec()),
+                                data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)),
                             })));
                             pos += n;
                             check -= 1;
