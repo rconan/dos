@@ -1,16 +1,39 @@
+//!
+//! # FEM wind loads
+//!
+//! Provides the time series of forces and moments at different nodes of the telescope mechanical structure
+
+use super::io::jar;
 use super::IO;
 use crate::fem::fem_io;
 use serde;
 use serde::Deserialize;
 use serde_pickle as pkl;
-use std::error::Error;
 use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum WindLoadsError {
+    #[error("No wind loads available")]
+    EmptyWindLoads,
+    #[error("Windload file not found")]
+    FileNotFound(#[from] std::io::Error),
+    #[error("pickle reader failed")]
+    PickleRead(#[from] pkl::Error),
+}
+
+//type HereResult<T> = Result<T, Box<dyn std::error::Error>>;
+type HereResult<T> = Result<T, WindLoadsError>;
+type Outputs = Option<std::vec::IntoIter<Vec<f64>>>;
 
 macro_rules! loads {
     ($($name:expr, $variant:ident),+) => {
+        /// Wind loads forces and moments
+        ///
+        /// A time vector containing vectors of forces and moments
         #[derive(Deserialize, Debug,Clone)]
         pub enum Loads {
             $(#[serde(rename = $name)]
@@ -27,16 +50,6 @@ macro_rules! loads {
                     $(Loads::$variant(io) => io),+
                 }
             }
-            pub fn as_output(self) -> Outputs {
-                match self {
-                    $(Loads::$variant(io) => Outputs::$variant(io.into_iter())),+
-                }
-            }
-            pub fn as_n_output(self, n: usize) -> Outputs {
-                match self {
-                    $(Loads::$variant(io) => Outputs::$variant(io[..n].to_owned().into_iter())),+
-                }
-            }
             pub fn match_io(&self, fem: &fem_io::Inputs, count: usize) -> Option<&[f64]> {
                 match (fem,self) {
                     $((fem_io::Inputs::$variant(_),Loads::$variant(v)) => {
@@ -48,50 +61,6 @@ macro_rules! loads {
         }
     };
 }
-macro_rules! outputs {
-    ($($name:expr, $variant:ident),+) => {
-        pub enum Outputs {
-            $($variant(std::vec::IntoIter<Vec<f64>>)),+
-        }
-        impl Outputs {
-            pub fn len(&self) -> usize {
-                match self {
-                    $(Outputs::$variant(io) => io.len()),+
-                }
-            }
-            pub fn match_io(&mut self, fem: &fem_io::Inputs) -> Option<Vec<f64>> {
-                match (fem,self) {
-                    $((fem_io::Inputs::$variant(_),Outputs::$variant(v)) => {
-                        v.next()
-                    }),+
-                        _ => None
-                }
-            }
-            pub fn next(&mut self) -> Option<Vec<f64>> {
-                match self {
-                    $(Outputs::$variant(v) => v.next()),+
-                }
-            }
-        }
-    };
-}
-
-outputs!(
-    "OSS_TopEnd_6F",
-    OSSTopEnd6F,
-    "OSS_Truss_6F",
-    OSSTruss6F,
-    "OSS_GIR_6F",
-    OSSGIR6F,
-    "OSS_CRING_6F",
-    OSSCRING6F,
-    "OSS_Cell_lcl_6F",
-    OSSCellLcl6F,
-    "OSS_M1_lcl_6F",
-    OSSM1Lcl6F,
-    "MC_M2_lcl_force_6F",
-    MCM2Lcl6F
-);
 loads!(
     "OSS_TopEnd_6F",
     OSSTopEnd6F,
@@ -109,17 +78,48 @@ loads!(
     MCM2Lcl6F
 );
 
+/// Wind loading sources
+#[derive(Default)]
+pub struct WindLoading {
+    pub oss_cring_6f: Outputs,
+    pub oss_topend_6f: Outputs,
+    pub oss_truss_6f: Outputs,
+    pub oss_gir_6f: Outputs,
+    pub oss_cell_lcl_6f: Outputs,
+    pub oss_m1_lcl_6f: Outputs,
+    pub mc_m2_lcl_6f: Outputs,
+    pub n_sample: usize,
+}
+
+/// Wind loads builder
 #[derive(Deserialize)]
 pub struct WindLoads {
+    /// forces and moments time series
     #[serde(rename = "outputs")]
     pub loads: Vec<Option<Loads>>,
+    /// time vector
     pub time: Vec<f64>,
     #[serde(skip)]
-    pub n_sample: Option<usize>,
+    n_sample: Option<usize>,
+    #[serde(skip)]
+    oss_cring_6f: Outputs,
+    #[serde(skip)]
+    oss_topend_6f: Outputs,
+    #[serde(skip)]
+    oss_truss_6f: Outputs,
+    #[serde(skip)]
+    oss_gir_6f: Outputs,
+    #[serde(skip)]
+    oss_cell_lcl_6f: Outputs,
+    #[serde(skip)]
+    oss_m1_lcl_6f: Outputs,
+    #[serde(skip)]
+    mc_m2_lcl_6f: Outputs,
 }
 
 impl WindLoads {
-    pub fn from_pickle<P>(path: P) -> Result<Self, Box<dyn Error>>
+    /// Reads the wind loads from a pickle file
+    pub fn from_pickle<P>(path: P) -> HereResult<Self>
     where
         P: AsRef<Path> + fmt::Display + Copy,
     {
@@ -128,75 +128,101 @@ impl WindLoads {
         let v: serde_pickle::Value = serde_pickle::from_reader(r)?;
         Ok(pkl::from_value(v)?)
     }
-    pub fn n_sample(self, n_sample: usize) -> Self {
-        Self {
-            n_sample: Some(n_sample),
-            ..self
-        }
+    fn len(&self) -> HereResult<usize> {
+        Ok(self
+            .loads
+            .iter()
+            .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
+            .ok_or(WindLoadsError::EmptyWindLoads)?)
     }
-    fn to_io(&self, io: &IO<()>) -> Option<std::vec::IntoIter<Vec<f64>>> {
+    fn to_io(&self, io: &IO<()>) -> HereResult<Outputs> {
         match &self.n_sample {
             Some(n) => self
                 .loads
                 .iter()
-                .filter_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .next(),
+                .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
+                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
             None => self
                 .loads
                 .iter()
-                .filter_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                .next(),
+                .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
+                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
         }
     }
-}
-type WindItem = Option<std::vec::IntoIter<Vec<f64>>>;
-/// Wind loading sources
-#[derive(Default)]
-pub struct WindLoading {
-    pub oss_cring_6f: WindItem,
-    pub oss_topend_6f: WindItem,
-    pub oss_truss_6f: WindItem,
-    pub oss_gir_6f: WindItem,
-    pub oss_cell_lcl_6f: WindItem,
-    pub oss_m1_lcl_6f: WindItem,
-    pub mc_m2_lcl_6f: WindItem,
-}
-impl WindLoading {
-    pub fn new(wind: &WindLoads, tags: &[IO<()>]) -> Result<Self, String> {
-        let mut this = Self::default();
-        tags.into_iter()
-            .map(|t| match t {
-                IO::OSSCRING6F { .. } => {
-                    this.oss_cring_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSTopEnd6F { .. } => {
-                    this.oss_topend_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSTruss6F { .. } => {
-                    this.oss_truss_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSGIR6F { .. } => {
-                    this.oss_gir_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSCellLcl6F { .. } => {
-                    this.oss_cell_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::OSSM1Lcl6F { .. } => {
-                    this.oss_m1_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                IO::MCM2Lcl6F { .. } => {
-                    this.mc_m2_lcl_6f = wind.to_io(t);
-                    Ok(())
-                }
-                _ => Err(format!("Output {:?} do no belong to WindLoading", t)),
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .and(Ok(this))
+    /// Set the number of time sample
+    pub fn n_sample(self, n_sample: usize) -> HereResult<Self> {
+        let n = self.len()?;
+        let n_sample = if n_sample > 0 && n_sample <= n {
+            Ok(n_sample)
+        } else {
+            Err(WindLoadsError::EmptyWindLoads)
+        }?;
+        Ok(Self {
+            n_sample: Some(if n_sample <= n { n_sample } else { n }),
+            ..self
+        })
+    }
+    pub fn truss(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_truss_6f: self.to_io(&jar::OSSTruss6F::new())?,
+            ..self
+        })
+    }
+    pub fn topend(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_topend_6f: self.to_io(&jar::OSSTopEnd6F::new())?,
+            ..self
+        })
+    }
+    pub fn cring(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_cring_6f: self.to_io(&jar::OSSCRING6F::new())?,
+            ..self
+        })
+    }
+    pub fn gir(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_gir_6f: self.to_io(&jar::OSSGIR6F::new())?,
+            ..self
+        })
+    }
+    pub fn m1_cell(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_cell_lcl_6f: self.to_io(&jar::OSSCellLcl6F::new())?,
+            ..self
+        })
+    }
+    pub fn m1_segments(self) -> HereResult<Self> {
+        Ok(Self {
+            oss_m1_lcl_6f: self.to_io(&jar::OSSM1Lcl6F::new())?,
+            ..self
+        })
+    }
+    pub fn m2_segments(self) -> HereResult<Self> {
+        Ok(Self {
+            mc_m2_lcl_6f: self.to_io(&jar::MCM2Lcl6F::new())?,
+            ..self
+        })
+    }
+    pub fn select_all(self) -> HereResult<Self> {
+        self.topend()?
+            .m2_segments()?
+            .truss()?
+            .m1_segments()?
+            .m1_cell()?
+            .gir()?
+            .cring()
+    }
+    pub fn build(self) -> HereResult<WindLoading> {
+        Ok(WindLoading {
+            n_sample: self.n_sample.unwrap_or(self.len()?),
+            oss_cring_6f: self.oss_cring_6f,
+            oss_topend_6f: self.oss_topend_6f,
+            oss_truss_6f: self.oss_truss_6f,
+            oss_gir_6f: self.oss_gir_6f,
+            oss_cell_lcl_6f: self.oss_cell_lcl_6f,
+            oss_m1_lcl_6f: self.oss_m1_lcl_6f,
+            mc_m2_lcl_6f: self.mc_m2_lcl_6f,
+        })
     }
 }

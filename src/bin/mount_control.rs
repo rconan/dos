@@ -1,8 +1,9 @@
-use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoading, WindLoads, DOS};
+use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoads, DOS};
 use fem;
 use fem::{DiscreteModalSolver, FEM};
 use gmt_controllers::mount;
 use serde_pickle as pkl;
+use std::error::Error;
 use std::fs::File;
 use std::time::Instant;
 
@@ -23,13 +24,14 @@ impl Timer {
     }
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn Error>> {
     let tic = Timer::tic();
     println!("Loading wind loads ...");
     let n_sample = 19990;
-    let wind = WindLoads::from_pickle("data/trimmer_finest_mesh_20Hz.neu.pkl")
-        .unwrap()
-        .n_sample(n_sample);
+    let mut wind_loading = WindLoads::from_pickle("data/trimmer_finest_mesh_20Hz.neu.pkl")?
+        .n_sample(n_sample)?
+        .select_all()?
+        .build()?;
     //.as_outputs();
     tic.print_toc();
 
@@ -69,12 +71,12 @@ fn main() -> Result<(), String> {
         .collect();
 
     let mut dms = DiscreteModalSolver::new(2e3, &mut fem, &fem_inputs, &mut fem_outputs)?;
-    let mut wind_loading = WindLoading::new(&wind, &wind_loads).unwrap();
+    //let mut wind_loading = WindLoading::new(&wind, &wind_loads).unwrap();
 
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
 
-    println!("Sample #: {}", wind.n_sample.unwrap());
+    println!("Sample #: {}", wind_loading.n_sample);
     println!("Running model ...");
     let tic = Timer::tic();
 
