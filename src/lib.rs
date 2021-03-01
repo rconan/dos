@@ -2,11 +2,18 @@ pub mod io;
 pub mod wind_loads;
 
 use io::IO;
-pub use wind_loads::{WindLoads,WindLoading};
+pub use wind_loads::{WindLoading, WindLoads, WindLoadsError};
 
 use fem;
 use gmt_controllers as ctrlr;
 use nalgebra as na;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DosError {
+    #[error("Windload file not found")]
+    WindLoads(#[from] WindLoadsError),
+}
 
 /// DOS interface
 pub trait DOS<T, U> {
@@ -320,7 +327,7 @@ impl<'a> DOS<(), Vec<f64>> for ctrlr::mount::drives::Controller<'a> {
                             })));
                             check -= 1;
                         }
-                        IO::OSSGIRDriveF { ..} => {
+                        IO::OSSGIRDriveF { .. } => {
                             a.push(Ok(Some(IO::OSSGIRDriveF {
                                 data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)),
                             })));

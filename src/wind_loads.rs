@@ -9,7 +9,6 @@ use crate::fem::fem_io;
 use serde;
 use serde::Deserialize;
 use serde_pickle as pkl;
-use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -25,8 +24,8 @@ pub enum WindLoadsError {
     PickleRead(#[from] pkl::Error),
 }
 
-//type HereResult<T> = Result<T, Box<dyn std::error::Error>>;
-type HereResult<T> = Result<T, WindLoadsError>;
+//type ThisResult<T> = Result<T, Box<dyn std::error::Error>>;
+type ThisResult<T> = Result<T, WindLoadsError>;
 type Outputs = Option<std::vec::IntoIter<Vec<f64>>>;
 
 macro_rules! loads {
@@ -40,16 +39,19 @@ macro_rules! loads {
               $variant(Vec<Vec<f64>>)),+
         }
         impl Loads {
+            /// Returns the number of samples in the time series
             pub fn len(&self) -> usize {
                 match self {
                     $(Loads::$variant(io) => io.len()),+
                 }
             }
+            /// Return the loads
             pub fn io(self) -> Vec<Vec<f64>> {
                 match self {
                     $(Loads::$variant(io) => io),+
                 }
             }
+            /// Match a wind load to FEM input
             pub fn match_io(&self, fem: &fem_io::Inputs, count: usize) -> Option<&[f64]> {
                 match (fem,self) {
                     $((fem_io::Inputs::$variant(_),Loads::$variant(v)) => {
@@ -119,23 +121,23 @@ pub struct WindLoads {
 
 impl WindLoads {
     /// Reads the wind loads from a pickle file
-    pub fn from_pickle<P>(path: P) -> HereResult<Self>
+    pub fn from_pickle<P>(path: P) -> ThisResult<Self>
     where
-        P: AsRef<Path> + fmt::Display + Copy,
+        P: AsRef<Path> + std::fmt::Display + Copy,
     {
         let f = File::open(path)?;
         let r = BufReader::with_capacity(1_000_000_000, f);
         let v: serde_pickle::Value = serde_pickle::from_reader(r)?;
         Ok(pkl::from_value(v)?)
     }
-    fn len(&self) -> HereResult<usize> {
-        Ok(self
-            .loads
+    /// Returns the number of samples in the time series
+    fn len(&self) -> ThisResult<usize> {
+        self.loads
             .iter()
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
-            .ok_or(WindLoadsError::EmptyWindLoads)?)
+            .ok_or(WindLoadsError::EmptyWindLoads)
     }
-    fn to_io(&self, io: &IO<()>) -> HereResult<Outputs> {
+    fn to_io(&self, io: &IO<()>) -> ThisResult<Outputs> {
         match &self.n_sample {
             Some(n) => self
                 .loads
@@ -150,61 +152,72 @@ impl WindLoads {
         }
     }
     /// Set the number of time sample
-    pub fn n_sample(self, n_sample: usize) -> HereResult<Self> {
+    pub fn n_sample(self, n_sample: usize) -> ThisResult<Self> {
+        assert!(n_sample > 0, "n_sample must be greater than 0");
         let n = self.len()?;
-        let n_sample = if n_sample > 0 && n_sample <= n {
-            Ok(n_sample)
-        } else {
-            Err(WindLoadsError::EmptyWindLoads)
-        }?;
+        assert!(
+            n_sample <= n,
+            format!(
+                "n_sample cannot be greater than the number of sample ({})",
+                n
+            )
+        );
         Ok(Self {
             n_sample: Some(if n_sample <= n { n_sample } else { n }),
             ..self
         })
     }
-    pub fn truss(self) -> HereResult<Self> {
+    /// Selects loads on the truss
+    pub fn truss(self) -> ThisResult<Self> {
         Ok(Self {
             oss_truss_6f: self.to_io(&jar::OSSTruss6F::new())?,
             ..self
         })
     }
-    pub fn topend(self) -> HereResult<Self> {
+    /// Selects loads on the top-end
+    pub fn topend(self) -> ThisResult<Self> {
         Ok(Self {
             oss_topend_6f: self.to_io(&jar::OSSTopEnd6F::new())?,
             ..self
         })
     }
-    pub fn cring(self) -> HereResult<Self> {
+    /// Selects loads on the C-ring
+    pub fn cring(self) -> ThisResult<Self> {
         Ok(Self {
             oss_cring_6f: self.to_io(&jar::OSSCRING6F::new())?,
             ..self
         })
     }
-    pub fn gir(self) -> HereResult<Self> {
+    /// Selects loads on the GIR
+    pub fn gir(self) -> ThisResult<Self> {
         Ok(Self {
             oss_gir_6f: self.to_io(&jar::OSSGIR6F::new())?,
             ..self
         })
     }
-    pub fn m1_cell(self) -> HereResult<Self> {
+    /// Selects loads on the M1 cells
+    pub fn m1_cell(self) -> ThisResult<Self> {
         Ok(Self {
             oss_cell_lcl_6f: self.to_io(&jar::OSSCellLcl6F::new())?,
             ..self
         })
     }
-    pub fn m1_segments(self) -> HereResult<Self> {
+    /// Selects loads on the M1 segments
+    pub fn m1_segments(self) -> ThisResult<Self> {
         Ok(Self {
             oss_m1_lcl_6f: self.to_io(&jar::OSSM1Lcl6F::new())?,
             ..self
         })
     }
-    pub fn m2_segments(self) -> HereResult<Self> {
+    /// Selects loads on the M2 segments
+    pub fn m2_segments(self) -> ThisResult<Self> {
         Ok(Self {
             mc_m2_lcl_6f: self.to_io(&jar::MCM2Lcl6F::new())?,
             ..self
         })
     }
-    pub fn select_all(self) -> HereResult<Self> {
+    /// Selects all loads
+    pub fn select_all(self) -> ThisResult<Self> {
         self.topend()?
             .m2_segments()?
             .truss()?
@@ -213,7 +226,8 @@ impl WindLoads {
             .gir()?
             .cring()
     }
-    pub fn build(self) -> HereResult<WindLoading> {
+    /// Builds a wind loading source object
+    pub fn build(self) -> ThisResult<WindLoading> {
         Ok(WindLoading {
             n_sample: self.n_sample.unwrap_or(self.len()?),
             oss_cring_6f: self.oss_cring_6f,
