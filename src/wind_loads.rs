@@ -3,8 +3,10 @@
 //!
 //! Provides the time series of forces and moments at different nodes of the telescope mechanical structure
 
-use super::io::jar;
-use super::{Tags, DOS, IO};
+use super::{
+    io::{jar, Tags},
+    IOTags, DOS, IO,
+};
 use crate::fem::fem_io;
 use serde;
 use serde::Deserialize;
@@ -137,7 +139,7 @@ impl WindLoads {
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
             .ok_or(WindLoadsError::EmptyWindLoads)
     }
-    fn to_io(&self, io: &IO<()>) -> ThisResult<Outputs> {
+    fn to_io(&self, io: &Tags) -> ThisResult<Outputs> {
         match &self.n_sample {
             Some(n) => self
                 .loads
@@ -241,8 +243,8 @@ impl WindLoads {
     }
 }
 /// Wind loading interface
-impl Tags for WindLoading {
-    fn outputs_tags(&self) -> Vec<IO<()>> {
+impl IOTags for WindLoading {
+    fn outputs_tags(&self) -> Vec<Tags> {
         vec![
             jar::OSSTopEnd6F::new(),
             jar::MCM2Lcl6F::new(),
@@ -253,11 +255,11 @@ impl Tags for WindLoading {
             jar::OSSCRING6F::new(),
         ]
     }
-    fn inputs_tags(&self) -> Vec<IO<()>> {
+    fn inputs_tags(&self) -> Vec<Tags> {
         unimplemented!("WindLoading takes no inputs")
     }
 }
-impl DOS<(), Vec<f64>> for WindLoading {
+impl DOS for WindLoading {
     fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         unimplemented!()
     }

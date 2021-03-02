@@ -118,6 +118,8 @@ macro_rules! io_match_wind_loads {
     };
 }
 
+pub type Tags = IO<()>;
+
 build_io!(
     SlewTorques,
     MCM2TE6F,

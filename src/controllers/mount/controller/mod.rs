@@ -1,5 +1,7 @@
 use crate::{
-    build_controller, build_inputs, build_outputs, import_simulink, io::jar, Tags, DOS, IO,
+    build_controller, build_inputs, build_outputs, import_simulink,
+    io::{jar, Tags},
+    IOTags, DOS, IO,
 };
 
 import_simulink!(MountControl0, U : (Mount_SP,3,Mount_FB,20), Y : (Mount_cmd,3));
@@ -25,11 +27,11 @@ build_controller!(MountControl0,
                   Y : (Mount_cmd -> (CMD,cmd))
 );
 
-impl<'a> Tags for Controller<'a> {
-    fn outputs_tags(&self) -> Vec<IO<()>> {
+impl<'a> IOTags for Controller<'a> {
+    fn outputs_tags(&self) -> Vec<Tags> {
         vec![jar::CMD::new()]
     }
-    fn inputs_tags(&self) -> Vec<IO<()>> {
+    fn inputs_tags(&self) -> Vec<Tags> {
         vec![
             jar::OSSAzDriveD::new(),
             jar::OSSElDriveD::new(),
@@ -37,7 +39,7 @@ impl<'a> Tags for Controller<'a> {
         ]
     }
 }
-impl<'a> DOS<(), Vec<f64>> for Controller<'a> {
+impl<'a> DOS for Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {

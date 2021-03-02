@@ -1,5 +1,5 @@
 use crate::fem;
-use crate::{Tags, DOS, IO};
+use crate::{IOTags, DOS, IO, io::Tags};
 use nalgebra as na;
 use rayon::prelude::*;
 use thiserror::Error;
@@ -12,15 +12,15 @@ pub use exponential::Exponential;
 #[derive(Error, Debug)]
 pub enum StateSpaceError {
     #[error("No FEM inputs match DOS {0:?}")]
-    FemInputs(IO<()>),
+    FemInputs(Tags),
     #[error("No FEM outputs match DOS {0:?}")]
-    FemOutputs(IO<()>),
+    FemOutputs(Tags),
     #[error("Missing {0}")]
     MissingArguments(String),
 }
 
 type ThisResult<T> = Result<T, StateSpaceError>;
-type StateSpaceIO = Option<Vec<IO<()>>>;
+type StateSpaceIO = Option<Vec<Tags>>;
 
 #[derive(Default)]
 pub struct DiscreteStateSpace {
@@ -44,7 +44,7 @@ impl DiscreteStateSpace {
             ..self
         }
     }
-    pub fn inputs(self, mut v_u: Vec<IO<()>>) -> Self {
+    pub fn inputs(self, mut v_u: Vec<Tags>) -> Self {
         let mut u = self.u;
         if u.is_none() {
             u = Some(v_u);
@@ -53,10 +53,10 @@ impl DiscreteStateSpace {
         }
         Self { u, ..self }
     }
-    pub fn inputs_from(self, element: &dyn Tags) -> Self {
+    pub fn inputs_from(self, element: &dyn IOTags) -> Self {
         self.inputs(element.outputs_tags())
     }
-    pub fn outputs(self, mut v_y: Vec<IO<()>>) -> Self {
+    pub fn outputs(self, mut v_y: Vec<Tags>) -> Self {
         let mut y = self.y;
         if y.is_none() {
             y = Some(v_y);
@@ -65,10 +65,10 @@ impl DiscreteStateSpace {
         }
         Self { y, ..self }
     }
-    pub fn outputs_to(self, element: &dyn Tags) -> Self {
+    pub fn outputs_to(self, element: &dyn IOTags) -> Self {
         self.outputs(element.inputs_tags())
     }
-    fn io2modes(fem: &fem::FEM, dos_inputs: &[IO<()>]) -> ThisResult<Vec<f64>> {
+    fn io2modes(fem: &fem::FEM, dos_inputs: &[Tags]) -> ThisResult<Vec<f64>> {
         use fem::IO;
         let indices: Vec<u32> = dos_inputs
             .iter()
@@ -100,7 +100,7 @@ impl DiscreteStateSpace {
             })
             .collect())
     }
-    fn modes2io(fem: &fem::FEM, dos_outputs: &[IO<()>]) -> ThisResult<Vec<Vec<f64>>> {
+    fn modes2io(fem: &fem::FEM, dos_outputs: &[Tags]) -> ThisResult<Vec<Vec<f64>>> {
         use fem::IO;
         let n = fem.n_modes();
         let q: Vec<_> = fem.modal_disp_to_outputs.chunks(n).collect();
@@ -192,10 +192,10 @@ impl DiscreteStateSpace {
 #[derive(Debug, Default)]
 pub struct DiscreteModalSolver {
     pub u: Vec<f64>,
-    u_tags: Vec<IO<()>>,
+    u_tags: Vec<Tags>,
     pub y: Vec<f64>,
     y_sizes: Vec<usize>,
-    y_tags: Vec<IO<()>>,
+    y_tags: Vec<Tags>,
     pub state_space: Vec<Exponential>,
 }
 impl Iterator for DiscreteModalSolver {
@@ -229,7 +229,7 @@ impl Iterator for DiscreteModalSolver {
     }
 }
 
-impl DOS<usize, Vec<f64>> for DiscreteModalSolver {
+impl DOS for DiscreteModalSolver {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         self.u = data
             .into_iter()
@@ -253,11 +253,11 @@ impl DOS<usize, Vec<f64>> for DiscreteModalSolver {
             .collect()
     }
 }
-impl Tags for DiscreteModalSolver {
-    fn outputs_tags(&self) -> Vec<IO<()>> {
+impl IOTags for DiscreteModalSolver {
+    fn outputs_tags(&self) -> Vec<Tags> {
         self.y_tags.clone()
     }
-    fn inputs_tags(&self) -> Vec<IO<()>> {
+    fn inputs_tags(&self) -> Vec<Tags> {
         self.u_tags.clone()
     }
 }
