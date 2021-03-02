@@ -69,6 +69,7 @@ impl DiscreteStateSpace {
         self.outputs(element.inputs_tags())
     }
     fn select_fem_io(fem: &mut fem::FEM, dos_inputs: &[Tags], dos_outputs: &[Tags]) {
+        println!("{}",fem);
         let inputs_idx: Vec<_> = fem
             .inputs
             .iter()

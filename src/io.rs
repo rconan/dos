@@ -1,6 +1,6 @@
+use super::wind_loads;
 use core::fmt::Debug;
 use serde::Serialize;
-use super::wind_loads;
 
 macro_rules! build_io {
     ($($variant:ident),+) => {
@@ -161,7 +161,6 @@ build_io!(
     OSSGIRDriveF,
     OSSGIR6F,
     OSSGravCS0,
-    OSSHarpointDeltaF,
     OSSM1Lcl6F,
     OSSTopEnd6F,
     OSSTruss6F,
@@ -172,7 +171,6 @@ build_io!(
     OSSElDriveD,
     OSSGIRDriveD,
     OSSBASE6D,
-    OSSHardpointD,
     OSSM1Lcl,
     OSSM1LOS,
     OSSIMUs6d,
@@ -218,8 +216,14 @@ build_io!(
     M2ReferenceBody5AxialD,
     M2ReferenceBody6AxialD,
     M2ReferenceBody7AxialD,
-    MountCmd
+    MountCmd,
+    // M1 HARDPOINTS
+    OSSHarpointDeltaF,
+    OSSHardpointD,
+    M1HPCmd,
+    M1HPLC
 );
+
 io_match_fem!(
     inputs:
         (
@@ -233,9 +237,18 @@ io_match_fem!(
             MCM2Lcl6F,
             OSSAzDriveF,
             OSSElDriveF,
-            OSSGIRDriveF
+            OSSGIRDriveF,
+            OSSHarpointDeltaF
         ),
-    outputs: (OSSAzDriveD, OSSElDriveD, OSSGIRDriveD, OSSM1Lcl, MCM2Lcl6D)
+    outputs:
+        (
+            OSSAzDriveD,
+            OSSElDriveD,
+            OSSGIRDriveD,
+            OSSM1Lcl,
+            MCM2Lcl6D,
+            OSSHardpointD
+        )
 );
 io_match_wind_loads!(
     OSSTopEnd6F,
@@ -246,4 +259,3 @@ io_match_wind_loads!(
     OSSM1Lcl6F,
     MCM2Lcl6F
 );
-
