@@ -1,5 +1,5 @@
 use crate::fem;
-use crate::{DOS, IO};
+use crate::{Tags, DOS, IO};
 use nalgebra as na;
 use rayon::prelude::*;
 use thiserror::Error;
@@ -44,11 +44,29 @@ impl DiscreteStateSpace {
             ..self
         }
     }
-    pub fn inputs(self, u: StateSpaceIO) -> Self {
+    pub fn inputs(self, mut v_u: Vec<IO<()>>) -> Self {
+        let mut u = self.u;
+        if u.is_none() {
+            u = Some(v_u);
+        } else {
+            u.as_mut().unwrap().append(&mut v_u);
+        }
         Self { u, ..self }
     }
-    pub fn outputs(self, y: StateSpaceIO) -> Self {
+    pub fn inputs_from(self, element: &dyn Tags) -> Self {
+        self.inputs(element.outputs_tags())
+    }
+    pub fn outputs(self, mut v_y: Vec<IO<()>>) -> Self {
+        let mut y = self.y;
+        if y.is_none() {
+            y = Some(v_y);
+        } else {
+            y.as_mut().unwrap().append(&mut v_y);
+        }
         Self { y, ..self }
+    }
+    pub fn outputs_to(self, element: &dyn Tags) -> Self {
+        self.outputs(element.inputs_tags())
     }
     fn io2modes(fem: &fem::FEM, dos_inputs: &[IO<()>]) -> ThisResult<Vec<f64>> {
         use fem::IO;
@@ -222,14 +240,24 @@ impl DOS<usize, Vec<f64>> for DiscreteModalSolver {
             .collect();
         Ok(self)
     }
-    fn outputs(&mut self, _tags: &[IO<usize>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
         let mut pos = 0;
-        self.y_tags.iter().zip(self.y_sizes.iter())
-            .map(|(t,n)| {
+        self.y_tags
+            .iter()
+            .zip(self.y_sizes.iter())
+            .map(|(t, n)| {
                 let io = IO::<Vec<f64>>::from((t, self.y[pos..pos + n].to_vec()));
                 pos += n;
                 Ok(Some(io))
             })
             .collect()
+    }
+}
+impl Tags for DiscreteModalSolver {
+    fn outputs_tags(&self) -> Vec<IO<()>> {
+        self.y_tags.clone()
+    }
+    fn inputs_tags(&self) -> Vec<IO<()>> {
+        self.u_tags.clone()
     }
 }

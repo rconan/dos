@@ -4,7 +4,7 @@
 //! Provides the time series of forces and moments at different nodes of the telescope mechanical structure
 
 use super::io::jar;
-use super::{IO,DOS};
+use super::{Tags, DOS, IO};
 use crate::fem::fem_io;
 use serde;
 use serde::Deserialize;
@@ -241,87 +241,91 @@ impl WindLoads {
     }
 }
 /// Wind loading interface
+impl Tags for WindLoading {
+    fn outputs_tags(&self) -> Vec<IO<()>> {
+        vec![
+            jar::OSSTopEnd6F::new(),
+            jar::MCM2Lcl6F::new(),
+            jar::OSSTruss6F::new(),
+            jar::OSSM1Lcl6F::new(),
+            jar::OSSCellLcl6F::new(),
+            jar::OSSGIR6F::new(),
+            jar::OSSCRING6F::new(),
+        ]
+    }
+    fn inputs_tags(&self) -> Vec<IO<()>> {
+        unimplemented!("WindLoading takes no inputs")
+    }
+}
 impl DOS<(), Vec<f64>> for WindLoading {
     fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         unimplemented!()
     }
-    fn outputs(&mut self, tags: &[IO<()>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
-        tags.into_iter()
-            .map(|t| match t {
-                IO::OSSCRING6F { .. } => Ok(Some(IO::OSSCRING6F {
-                    data: Some(
-                        self.oss_cring_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSCRING6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::OSSTopEnd6F { .. } => Ok(Some(IO::OSSTopEnd6F {
-                    data: Some(
-                        self.oss_topend_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSTopEnd6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::MCM2TE6F { .. } => Ok(Some(IO::MCM2TE6F {
-                    data: Some(
-                        self.oss_topend_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSTopEnd6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::OSSTruss6F { .. } => Ok(Some(IO::OSSTruss6F {
-                    data: Some(
-                        self.oss_truss_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSTruss6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::OSSGIR6F { .. } => Ok(Some(IO::OSSGIR6F {
-                    data: Some(
-                        self.oss_gir_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSGIR6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::OSSCellLcl6F { .. } => Ok(Some(IO::OSSCellLcl6F {
-                    data: Some(
-                        self.oss_cell_lcl_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSCellLcl6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::OSSM1Lcl6F { .. } => Ok(Some(IO::OSSM1Lcl6F {
-                    data: Some(
-                        self.oss_m1_lcl_6f
-                            .as_mut()
-                            .ok_or_else(|| "OSSM1Lcl6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                IO::MCM2Lcl6F { .. } => Ok(Some(IO::MCM2Lcl6F {
-                    data: Some(
-                        self.mc_m2_lcl_6f
-                            .as_mut()
-                            .ok_or_else(|| "MCM2Lcl6F not available")?
-                            .next()
-                            .ok_or_else(|| "Empty")?,
-                    ),
-                })),
-                _ => Err(format!("Output {:?} do no belong to WindLoading", t)),
-            })
-            .collect()
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+        Ok(Some(vec![
+            IO::OSSTopEnd6F {
+                data: Some(
+                    self.oss_topend_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSTopEnd6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::MCM2Lcl6F {
+                data: Some(
+                    self.mc_m2_lcl_6f
+                        .as_mut()
+                        .ok_or_else(|| "MCM2Lcl6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::OSSTruss6F {
+                data: Some(
+                    self.oss_truss_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSTruss6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::OSSM1Lcl6F {
+                data: Some(
+                    self.oss_m1_lcl_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSM1Lcl6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::OSSCellLcl6F {
+                data: Some(
+                    self.oss_cell_lcl_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSCellLcl6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::OSSGIR6F {
+                data: Some(
+                    self.oss_gir_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSGIR6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+            IO::OSSCRING6F {
+                data: Some(
+                    self.oss_cring_6f
+                        .as_mut()
+                        .ok_or_else(|| "OSSCRING6F not available")?
+                        .next()
+                        .ok_or_else(|| "Empty")?,
+                ),
+            },
+        ]))
     }
 }
