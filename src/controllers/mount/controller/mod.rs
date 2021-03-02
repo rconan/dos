@@ -29,7 +29,7 @@ build_controller!(MountControl0,
 
 impl<'a> IOTags for Controller<'a> {
     fn outputs_tags(&self) -> Vec<Tags> {
-        vec![jar::CMD::new()]
+        vec![jar::MountCmd::new()]
     }
     fn inputs_tags(&self) -> Vec<Tags> {
         vec![
@@ -75,7 +75,7 @@ impl<'a> DOS for Controller<'a> {
         }
     }
     fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
-        Ok(Some(vec![IO::CMD {
+        Ok(Some(vec![IO::MountCmd {
             data: Some(Vec::<f64>::from(&self.cmd)),
         }]))
     }

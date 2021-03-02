@@ -54,7 +54,7 @@ impl<'a> IOTags for Controller<'a> {
     }
     fn inputs_tags(&self) -> Vec<Tags> {
         vec![
-            jar::CMD::new(),
+            jar::MountCmd::new(),
             jar::OSSAzDriveD::new(),
             jar::OSSElDriveD::new(),
             jar::OSSGIRDriveD::new(),
@@ -65,7 +65,7 @@ impl<'a> DOS for Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
         if data.into_iter().fold(4, |mut a, io| {
             match io {
-                IO::CMD { data: Some(values) } => {
+                IO::MountCmd { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.cmd[k] = v;
                     }

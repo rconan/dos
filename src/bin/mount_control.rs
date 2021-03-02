@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Mount Drives
         mnt_drives
             .inputs(mount_drives_cmd.unwrap_or(vec![
-                CMD::with(vec![0f64; 3]),
+                MountCmd::with(vec![0f64; 3]),
                 OSSAzDriveD::with(vec![0f64; 8]),
                 OSSElDriveD::with(vec![0f64; 8]),
                 OSSGIRDriveD::with(vec![0f64; 4]),

@@ -218,7 +218,7 @@ build_io!(
     M2ReferenceBody5AxialD,
     M2ReferenceBody6AxialD,
     M2ReferenceBody7AxialD,
-    CMD
+    MountCmd
 );
 io_match_fem!(
     inputs:
