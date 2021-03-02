@@ -1,5 +1,5 @@
 use crate::fem;
-use crate::{IOTags, DOS, IO, io::Tags};
+use crate::{io::Tags, IOTags, DOS, IO};
 use nalgebra as na;
 use rayon::prelude::*;
 use thiserror::Error;
@@ -68,6 +68,30 @@ impl DiscreteStateSpace {
     pub fn outputs_to(self, element: &dyn IOTags) -> Self {
         self.outputs(element.inputs_tags())
     }
+    fn select_fem_io(fem: &mut fem::FEM, dos_inputs: &[Tags], dos_outputs: &[Tags]) {
+        let inputs_idx: Vec<_> = fem
+            .inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(k, i)| {
+                dos_inputs
+                    .iter()
+                    .find_map(|d| i.as_ref().and_then(|i| d.match_fem_inputs(i)).and(Some(k)))
+            })
+            .collect();
+        let outputs_idx: Vec<_> = fem
+            .outputs
+            .iter()
+            .enumerate()
+            .filter_map(|(k, i)| {
+                dos_outputs
+                    .iter()
+                    .find_map(|d| i.as_ref().and_then(|i| d.match_fem_outputs(i)).and(Some(k)))
+            })
+            .collect();
+        fem.keep_inputs(&inputs_idx).keep_outputs(&outputs_idx);
+        println!("{}",fem);
+    }
     fn io2modes(fem: &fem::FEM, dos_inputs: &[Tags]) -> ThisResult<Vec<f64>> {
         use fem::IO;
         let indices: Vec<u32> = dos_inputs
@@ -135,7 +159,7 @@ impl DiscreteStateSpace {
             Err(StateSpaceError::MissingArguments("sampling".to_owned())),
             |x| Ok(1f64 / x),
         )?;
-        let fem = self
+        let mut fem = self
             .fem
             .map_or(Err(StateSpaceError::MissingArguments("FEM".to_owned())), Ok)?;
         let dos_inputs = self.u.map_or(
@@ -146,6 +170,7 @@ impl DiscreteStateSpace {
             Err(StateSpaceError::MissingArguments("outputs".to_owned())),
             Ok,
         )?;
+        Self::select_fem_io(&mut fem, &dos_inputs, &dos_outputs);
         let forces_2_modes = na::DMatrix::from_row_slice(
             fem.n_modes(),
             fem.n_inputs(),
