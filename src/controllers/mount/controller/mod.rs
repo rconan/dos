@@ -1,0 +1,97 @@
+use crate::{build_controller, build_inputs, build_outputs, import_simulink,DOS,IO};
+
+import_simulink!(MountControl0, U : (Mount_SP,3,Mount_FB,20), Y : (Mount_cmd,3));
+build_inputs!(
+    SP,
+    3,
+    0,
+    OssAzDrive,
+    20,
+    0,
+    OssElDrive,
+    20,
+    8,
+    OssGirDrive,
+    20,
+    16
+);
+build_outputs!(CMD, 3);
+build_controller!(MountControl0,
+                  U : (Mount_FB -> (OssAzDrive,oss_az_drive),
+                       Mount_FB -> (OssElDrive,oss_el_drive),
+                       Mount_FB -> (OssGirDrive,oss_gir_drive)),
+                  Y : (Mount_cmd -> (CMD,cmd))
+);
+
+impl<'a> DOS<(), Vec<f64>> for Controller<'a> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
+        if data.into_iter().fold(3, |mut a, io| {
+            match io {
+                IO::OSSAzDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_az_drive[k] = v;
+                    }
+                    a -= 1;
+                }
+                IO::OSSElDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_el_drive[k] = v;
+                    }
+                    a -= 1;
+                }
+                IO::OSSGIRDriveD { data: Some(values) } => {
+                    for (k, v) in values.into_iter().enumerate() {
+                        self.oss_gir_drive[k] = v;
+                    }
+                    a -= 1;
+                }
+                _ => (),
+            }
+            if a == 0 {
+                return a;
+            }
+            a
+        }) == 0
+        {
+            Ok(self)
+        } else {
+            Err("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".to_owned())
+        }
+        /*
+        data.into_iter()
+            .map(|io| match io {
+                IO::OSSAzDriveD { data: Some(values) } => {
+                    for (k,v) in values.into_iter().enumerate() {
+                        self.oss_az_drive[k] = v;
+                    }
+                    Ok(())
+                }
+                IO::OSSElDriveD { data: Some(values) } => {
+                    for (k,v) in values.into_iter().enumerate() {
+                        self.oss_el_drive[k] = v;
+                    }
+                    Ok(())
+                }
+                IO::OSSGIRDriveD { data: Some(values) } => {
+                    for (k,v) in values.into_iter().enumerate() {
+                        self.oss_gir_drive[k] = v;
+                    }
+                    Ok(())
+                }
+                _ => Err("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".to_owned()),
+            })
+            .collect::<Result<(), String>>()
+            .and(Ok(self))*/
+    }
+    fn outputs(&mut self, tags: &[IO<()>]) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+        tags.iter()
+            .find_map(|t| match t {
+                IO::CMD { .. } => Some(IO::CMD {
+                    data: Some(Vec::<f64>::from(&self.cmd)),
+                }),
+                _ => None,
+            })
+            .and_then(|x| Some(Some(vec![x])))
+            .ok_or_else(|| "Unexpected DOS IO in mount controller controller".to_owned())
+    }
+}

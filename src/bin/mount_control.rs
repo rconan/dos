@@ -1,7 +1,6 @@
-use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoads, DOS};
+use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoads, DOS, controllers::mount};
 use fem;
 use fem::{DiscreteModalSolver, FEM};
-use gmt_controllers::mount;
 use serde_pickle as pkl;
 use std::error::Error;
 use std::fs::File;

@@ -7,10 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gmt-controllers = { path="../gmt-controllers" }
 fem = { path="../fem" }
 serde-pickle = "0.6.2"
 nalgebra = "0.24.1"
-anyhow = "1.0.38"
 serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.24"
+paste = "1.0.4"
+
+[build-dependencies]
+cc = "1.0.67"
