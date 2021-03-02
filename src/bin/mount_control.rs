@@ -1,4 +1,9 @@
-use dos::{io::jar::*, io::IO, DOSDiscreteModalSolver, WindLoads, DOS, controllers::mount};
+use dos::{
+    controllers::{mount, state_space::DiscreteStateSpace},
+    io::jar::*,
+    io::IO,
+    DOSDiscreteModalSolver, WindLoads, DOS,
+};
 use fem;
 use fem::{DiscreteModalSolver, FEM};
 use serde_pickle as pkl;
@@ -70,6 +75,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .collect();
 
     let mut dms = DiscreteModalSolver::new(2e3, &mut fem, &fem_inputs, &mut fem_outputs)?;
+    let ss = DiscreteStateSpace::from(fem)
+        .sampling(2e3)
+        .inputs(Some(fem_inputs.clone()))
+        .outputs(Some(vec![
+            OSSM1Lcl::new(),
+            MCM2Lcl6D::new(),
+            OSSAzDriveD::new(),
+            OSSElDriveD::new(),
+            OSSGIRDriveD::new(),
+        ]))
+        .build();
     //let mut wind_loading = WindLoading::new(&wind, &wind_loads).unwrap();
 
     let mut mnt_drives = mount::drives::Controller::new();

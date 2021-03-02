@@ -49,6 +49,14 @@ macro_rules! build_io {
                 }
             }
         }
+        impl From<(&IO<()>,Vec<f64>)> for IO<Vec<f64>> {
+            /// Converts a `(&IO<()>,Vec<f64>)` into an `IO<Vec<f64>>`
+            fn from((io,v): (&IO<()>,Vec<f64>)) -> Self {
+                match io {
+                    $(IO::$variant{ data: _} => IO::$variant{ data: Some(v)}),+
+                }
+            }
+        }
         pub mod jar {
             use super::IO;
             /// DOS IO builder
