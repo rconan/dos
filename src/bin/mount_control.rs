@@ -1,10 +1,8 @@
 use dos::{
     controllers::{mount, state_space::DiscreteStateSpace},
     io::jar::*,
-    io::IO,
     WindLoads, DOS,
 };
-use fem;
 use fem::FEM;
 use serde_pickle as pkl;
 use std::error::Error;
@@ -29,6 +27,7 @@ impl Timer {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // WIND LOADS
     let tic = Timer::tic();
     println!("Loading wind loads ...");
     let n_sample = 19990;
@@ -38,39 +37,35 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()?;
     tic.print_toc();
 
+    // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
 
-    let mut fem = {
-        let tic = Timer::tic();
-        println!("Loading FEM ...");
-        let mut fem = FEM::from_pickle("data/mt_fsm/modal_state_space_model_2ndOrder.pkl").unwrap();
-        tic.print_toc();
-        println!("{}", fem);
-        fem.keep_inputs(&[1, 2, 3, 4, 5, 6, 8, 9, 10, 13])
-            .keep_outputs(&[0, 1, 2, 5, 24]);
-        println!("{}", fem);
+    // FEM
+    let tic = Timer::tic();
+    println!("Building FEM dynamic model...");
+    let mut fem = DiscreteStateSpace::from(FEM::from_pickle(
+        "data/mt_fsm/modal_state_space_model_2ndOrder.pkl",
+    )?)
+    .sampling(2e3)
+    .inputs_from(&wind_loading)
+    .inputs_from(&mnt_drives)
+    .outputs(vec![OSSM1Lcl::new(), MCM2Lcl6D::new()])
+    .outputs_to(&mnt_ctrl)
+    .build()?;
+    tic.print_toc();
 
-        DiscreteStateSpace::from(fem)
-            .sampling(2e3)
-            .inputs_from(&wind_loading)
-            .inputs_from(&mnt_drives)
-            .outputs(vec![OSSM1Lcl::new(), MCM2Lcl6D::new()])
-            .outputs_to(&mnt_ctrl)
-            .build()?
-    };
+    // OUTPUTS
+    let mut u = vec![];
+    let mut y = vec![];
+    let mut y_mnt_drive = vec![];
 
     println!("Sample #: {}", wind_loading.n_sample);
     println!("Running model ...");
     let tic = Timer::tic();
 
-    let mut u = vec![];
-    let mut y = vec![];
-    let mut y_mnt_drive = vec![];
-
-    let mut mount_drives_cmd: Option<Vec<IO<Vec<f64>>>> = None;
-    println!("Mount ctrl output: {:?}", mnt_ctrl.outputs()?);
-
+    // FEEDBACK LOOP
+    let mut mount_drives_cmd = None;
     while let Ok(Some(mut fem_forces)) = wind_loading.outputs() {
         // Mount Drives
         mnt_drives
@@ -106,16 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     tic.print_toc();
 
-    /*    let f = File::open("data/wind_loads.0.pkl").unwrap();
-    let y0: Vec<Vec<f64>> = pkl::from_reader(f).unwrap();
-    let y_err = y0
-        .iter()
-        .flatten()
-        .zip(y.iter().flatten())
-        .map(|(y0, y)| (y0 - y) * (y0 - y))
-        .sum::<f64>()
-        .sqrt();
-    println!("Y ERR. : {:e}", y_err);*/
+    // OUTPUTS SAVING
     let mut f = File::create("data/wind_loads.pkl").unwrap();
     pkl::to_writer(&mut f, &[u, y, y_mnt_drive], true).unwrap();
     Ok(())
