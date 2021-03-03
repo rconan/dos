@@ -260,10 +260,10 @@ impl IOTags for WindLoading {
     }
 }
 impl DOS for WindLoading {
-    fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
+    fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
         unimplemented!()
     }
-    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>> {
         Ok(Some(vec![
             IO::OSSTopEnd6F {
                 data: Some(

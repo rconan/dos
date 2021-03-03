@@ -256,17 +256,17 @@ impl Iterator for DiscreteModalSolver {
 }
 
 impl DOS for DiscreteModalSolver {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
         self.u = data
             .into_iter()
-            .map(|x| Result::<Vec<f64>, String>::from(x))
-            .collect::<Result<Vec<Vec<f64>>, String>>()?
+            .map(|x| Result::<Vec<f64>, Box<dyn std::error::Error>>::from(x))
+            .collect::<Result<Vec<Vec<f64>>, Box<dyn std::error::Error>>>()?
             .into_iter()
             .flatten()
             .collect();
         Ok(self)
     }
-    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>> {
         let mut pos = 0;
         self.y_tags
             .iter()

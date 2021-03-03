@@ -25,11 +25,11 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T: Debug> From<IO<T>> for Result<T,String> {
+        impl<T: Debug> From<IO<T>> for Result<T,Box<dyn std::error::Error>> {
             /// Converts a `IO<T>` into an `Option<T>`
             fn from(io: IO<T>) -> Self {
                 match io {
-                    $(IO::$variant{ data: values} => values.ok_or_else(|| "Data missing".to_owned())),+
+                    $(IO::$variant{ data: values} => values.ok_or_else(|| "Data missing".into())),+
                 }
             }
         }

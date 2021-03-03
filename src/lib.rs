@@ -10,8 +10,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DosError {
-    #[error("Windload file not found")]
-    WindLoads(#[from] WindLoadsError),
+    #[error("DOS failed stepping the component")]
+    Step(),
 }
 
 /// DOS interface
@@ -21,15 +21,13 @@ pub trait IOTags {
 }
 pub trait DOS {
     /// Returns a `Vec` of `IO<Vec<f64>>`
-    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String>;
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>>;
     /// Takes in a `Vec` of `IO<Vec<f64>>`
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String>;
-    fn step(&mut self) -> Result<&mut Self, String>
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>>;
+    fn step(&mut self) -> Result<&mut Self, DosError>
     where
         Self: Sized + Iterator,
     {
-        self.next()
-            .and(Some(self))
-            .ok_or_else(|| "DOS failed stepping the component".to_owned())
+        self.next().and(Some(self)).ok_or_else(|| DosError::Step())
     }
 }

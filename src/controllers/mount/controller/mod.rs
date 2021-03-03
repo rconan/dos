@@ -40,7 +40,7 @@ impl<'a> IOTags for Controller<'a> {
     }
 }
 impl<'a> DOS for Controller<'a> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, String> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {
                 IO::OSSAzDriveD { data: Some(values) } => {
@@ -71,10 +71,10 @@ impl<'a> DOS for Controller<'a> {
         {
             Ok(self)
         } else {
-            Err("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".to_owned())
+            Err("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".into())
         }
     }
-    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, String> {
+    fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>> {
         Ok(Some(vec![IO::MountCmd {
             data: Some(Vec::<f64>::from(&self.cmd)),
         }]))
