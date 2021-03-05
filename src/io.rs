@@ -121,14 +121,28 @@ macro_rules! io_match_wind_loads {
 pub type Tags = IO<()>;
 
 build_io!(
-    SlewTorques,
-    MCM2TE6F,
-    MCM2TEIF6F,
-    MCM2SmHexF,
-    MCM2PMA1F,
-    MCM2CP6F,
-    MCM2RB6F,
-    OSSTrussTEIF6f,
+    // Uniform Wind Pressure
+    OSSTopEnd6F,  // Top-End
+    MCM2Lcl6F,    // M2 segments
+    OSSTruss6F,   //Truss
+    OSSM1Lcl6F,   // M1 segments
+    OSSCellLcl6F, // M1 segment cells
+    OSSGIR6F,     // GIR
+    OSSCRING6F,   // C-rings
+    // Axial wind forces on M1 mirror segments
+    M1DistributedWindf,
+    // Axial displacement of M1 segment surface nodes
+    M1Segment1AxialD,
+    M1Segment2AxialD,
+    M1Segment3AxialD,
+    M1Segment4AxialD,
+    M1Segment5AxialD,
+    M1Segment6AxialD,
+    M1Segment7AxialD,
+    // M1 hardpoints
+    OSSHarpointDeltaF, // forces
+    OSSHardpointD,     // displacements
+    // M1 Actuators forces applied to back-side of M1 segments
     M1ActuatorsSegment1,
     M1ActuatorsSegment2,
     M1ActuatorsSegment3,
@@ -136,7 +150,36 @@ build_io!(
     M1actuatorsSegment5,
     M1actuatorsSegment6,
     M1ActuatorsSegment7,
-    M1DistributedWindf,
+    // Mount Drives
+    OSSAzDriveF,  // azimuth drive
+    OSSElDriveF,  // elevation drive
+    OSSGIRDriveF, // GIR drive
+    OSSAzDriveD,
+    OSSElDriveD,
+    OSSGIRDriveD,
+    // Azimuth, elevation, rotation drive torques
+    SlewTorques,
+    // Line of sight
+    OSSM1LOS,  // M1
+    MCM2LOS6D, // M2
+    // Base of Pier
+    OSSBASE6F,
+    // Inertial Measurement Units
+    OSSIMUs6d,
+    // M2 Positioners
+    MCM2SmHexF,
+    // ASM Proof Mass Actuators
+    MCM2PMA1F,
+    // ASM
+    MCM2CP6F,  // Cold plates
+    MCM2RB6F,  // Reference bodies
+    MCM2CP6D,  // Cold plates
+    MCM2RB6D,  // Reference bodies
+    MCM2Lcl6D, // Face sheets
+    //
+    MCM2TE6F,
+    MCM2TEIF6F,
+    OSSTrussTEIF6f,
     MCM2GravCS0,
     MCM2PZTS1F,
     MCM2PZTS2F,
@@ -145,7 +188,6 @@ build_io!(
     MCM2PZTS5F,
     MCM2PZTS6F,
     MCM2PZTS7F,
-    MCM2Lcl6F,
     MCM2SmallS16F,
     MCM2SmallS26F,
     MCM2SmallS36F,
@@ -153,27 +195,12 @@ build_io!(
     MCM2SmallS56F,
     MCM2SmallS66F,
     MCM2SmallS76F,
-    OSSAzDriveF,
-    OSSBASE6F,
-    OSSCRING6F,
-    OSSCellLcl6F,
-    OSSElDriveF,
-    OSSGIRDriveF,
-    OSSGIR6F,
     OSSGravCS0,
-    OSSM1Lcl6F,
-    OSSTopEnd6F,
-    OSSTruss6F,
     OSSTrussIF6D,
     OSSGIR6D,
     OSSCRING6D,
-    OSSAzDriveD,
-    OSSElDriveD,
-    OSSGIRDriveD,
     OSSBASE6D,
     OSSM1Lcl,
-    OSSM1LOS,
-    OSSIMUs6d,
     OSSTruss6d,
     OSSCellLcl,
     MCM2SmallS16D,
@@ -190,22 +217,10 @@ build_io!(
     MCM2PZTS6D,
     MCM2SmallS76D,
     MCM2PZTS7D,
-    MCM2Lcl6D,
-    MCM2LOS6D,
     M1SurfacesD,
     M1EdgeSensors,
-    M1Segment1AxialD,
-    M1Segment2AxialD,
-    M1Segment3AxialD,
-    M1Segment4AxialD,
-    M1Segment5AxialD,
-    M1Segment6AxialD,
-    M1Segment7AxialD,
-    MCM2RB6D,
-    MCM2CP6D,
     MCM2CP1D,
     MCM2SmHexD,
-    MCM2lcl6D,
     M2edgesensors,
     MCM2TEIF6D,
     MCM2TE6D,
@@ -217,9 +232,6 @@ build_io!(
     M2ReferenceBody6AxialD,
     M2ReferenceBody7AxialD,
     MountCmd,
-    // M1 HARDPOINTS
-    OSSHarpointDeltaF,
-    OSSHardpointD,
     M1HPCmd,
     M1HPLC
 );
