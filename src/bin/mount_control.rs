@@ -69,29 +69,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     while let Ok(Some(mut fem_forces)) = wind_loading.outputs() {
         // Mount Drives
         mnt_drives
-            .inputs(mount_drives_cmd.unwrap_or(vec![
+            .in_step_out(mount_drives_cmd.unwrap_or(vec![
                 MountCmd::with(vec![0f64; 3]),
                 OSSAzDriveD::with(vec![0f64; 8]),
                 OSSElDriveD::with(vec![0f64; 8]),
                 OSSGIRDriveD::with(vec![0f64; 4]),
             ]))?
-            .step()?
-            .outputs()?
             .map(|mut x| {
                 fem_forces.append(&mut x);
             });
         u.push(fem_forces.clone());
         // FEM
         let ys = fem
-            .inputs(fem_forces)?
-            .step()?
-            .outputs()?
+            .in_step_out(fem_forces)?
             .ok_or("FEM output is empty")?;
         // Mount Controller
         mount_drives_cmd = mnt_ctrl
-            .inputs(ys[2..].to_vec())?
-            .step()?
-            .outputs()?
+            .in_step_out(ys[2..].to_vec())?
             .and_then(|mut x| {
                 x.extend_from_slice(&ys[2..]);
                 Some(x)

@@ -30,4 +30,13 @@ pub trait DOS {
     {
         self.next().and(Some(self)).ok_or_else(|| DosError::Step())
     }
+    fn in_step_out(
+        &mut self,
+        data: Vec<IO<Vec<f64>>>,
+    ) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>>
+    where
+        Self: Sized + Iterator,
+    {
+        self.inputs(data)?.step()?.outputs()
+    }
 }
