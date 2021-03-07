@@ -1,8 +1,10 @@
 pub mod controllers;
 pub mod io;
+pub mod telltale;
 pub mod wind_loads;
 
 use io::IO;
+pub use telltale::DataLogging;
 pub use wind_loads::{WindLoading, WindLoads, WindLoadsError};
 
 use fem;

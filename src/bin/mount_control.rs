@@ -1,7 +1,7 @@
 use dos::{
     controllers::{mount, state_space::DiscreteStateSpace},
     io::jar::*,
-    WindLoads, DOS,
+    DataLogging, WindLoads, DOS,
 };
 use fem::FEM;
 use serde_pickle as pkl;
@@ -42,18 +42,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut mnt_ctrl = mount::controller::Controller::new();
 
     // FEM
+    let sampling_rate = 2e3;
+    let m1_rbm = OSSM1Lcl::new();
+    let m2_rbm = MCM2Lcl6D::new();
     let tic = Timer::tic();
     println!("Building FEM dynamic model...");
     let mut fem = DiscreteStateSpace::from(FEM::from_pickle(
         "data/mt_fsm/modal_state_space_model_2ndOrder.pkl",
     )?)
-    .sampling(2e3)
+    .sampling(sampling_rate)
     .inputs_from(&wind_loading)
     .inputs_from(&mnt_drives)
-    .outputs(vec![OSSM1Lcl::new(), MCM2Lcl6D::new()])
+    .outputs(vec![m1_rbm.clone(), m2_rbm.clone()])
     .outputs_to(&mnt_ctrl)
     .build()?;
     tic.print_toc();
+
+    // DATA LOGGING
+    let mut data = DataLogging::new()
+        .sampling_rate(2e3)
+        //.key(m1_rbm.clone())
+        //.key(m2_rbm.clone())
+        .build();
 
     // OUTPUTS
     let mut u = vec![];
@@ -67,6 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // FEEDBACK LOOP
     let mut mount_drives_cmd = None;
     while let Ok(Some(mut fem_forces)) = wind_loading.outputs() {
+        data.step()?;
         // Mount Drives
         mnt_drives
             .in_step_out(mount_drives_cmd.unwrap_or(vec![
@@ -90,6 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 x.extend_from_slice(&ys[2..]);
                 Some(x)
             });
+        data.tell(&ys[0])?.tell(&ys[1])?;
         y.push(ys); // log
         y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
     }
@@ -98,5 +110,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // OUTPUTS SAVING
     let mut f = File::create("data/wind_loads.pkl").unwrap();
     pkl::to_writer(&mut f, &[u, y, y_mnt_drive], true).unwrap();
+    let mut f = File::create("data/mount_control.data.pkl").unwrap();
+//    data.time_series(m1_rbm).and_then(move |x| {
+//        data.time_series(m2_rbm).and_then(|y| Some(vec![x,y]))});
+    pkl::to_writer(&mut f, &[data.time_series(m1_rbm),data.time_series(m2_rbm)], true).unwrap();
     Ok(())
 }
