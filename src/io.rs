@@ -17,11 +17,34 @@ macro_rules! build_io {
                 }
             }
         }
+        impl<T> PartialEq<IO<T>> for IO<()> {
+            fn eq(&self, other: &IO<T>) -> bool {
+                match (self,other) {
+                    $((IO::$variant{..},IO::$variant{..}) => true,)+
+                    _ => false,
+                }
+            }
+        }
+        impl<T> From<&IO<()>> for IO<T> {
+            /// Converts a `IO<T>` into an `Option<T>`
+            fn from(io: &IO<()>) -> Self {
+                match io {
+                    $(IO::$variant{ ..} => IO::$variant{ data: Default::default()}),+
+                }
+            }
+        }
         impl<T> From<IO<T>> for Option<T> {
             /// Converts a `IO<T>` into an `Option<T>`
             fn from(io: IO<T>) -> Self {
                 match io {
                     $(IO::$variant{ data: values} => values),+
+                }
+            }
+        }
+        impl<T> From<(&IO<()>,Option<T>)> for IO<T> {
+            fn from((io,data): (&IO<()>,Option<T>)) -> Self {
+                match io {
+                    $(IO::$variant{ .. } => IO::$variant{ data: data}),+
                 }
             }
         }
