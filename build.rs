@@ -6,9 +6,20 @@ fn main() {
         .file("src/controllers/mount/controller/MountControl0_data.c")
         .compile("mount_controller");
     cc::Build::new()
+        .file("src/controllers/mount/pdr/controller/Mount_Control.c")
+        .file("src/controllers/mount/pdr/controller/Mount_Control_data.c")
+        .compile("mount_pdr_controller");
+    cc::Build::new()
         .file("src/controllers/mount/drives/MountDrives.c")
         .file("src/controllers/mount/drives/MountDrives_data.c")
         .compile("mount_drives");
+    cc::Build::new()
+        .file("src/controllers/mount/pdr/drives/Mount_Drv_PDR2021.c")
+        .file("src/controllers/mount/pdr/drives/Mount_Drv_PDR2021_data.c")
+        .file("src/controllers/mount/pdr/drives/rtGetInf.c")
+        .file("src/controllers/mount/pdr/drives/rtGetNaN.c")
+        .file("src/controllers/mount/pdr/drives/rt_nonfinite.c")
+        .compile("mount_pdr_drives");
     cc::Build::new()
         .file("src/controllers/m1/hp_load_cells/M1HPloadcells.c")
         .compile("m1_hp_load_cells");
