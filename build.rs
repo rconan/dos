@@ -27,4 +27,8 @@ fn main() {
         .file("src/controllers/m1/local_controller/M1LocalControl.c")
         .file("src/controllers/m1/local_controller/M1LocalControl_data.c")
         .compile("m1_local_controller");
+    cc::Build::new()
+        .file("src/controllers/m1/cg_controller/M1OFL_Control.c")
+        .file("src/controllers/m1/cg_controller/M1OFL_Control_data.c")
+        .compile("m1_cg_controller");
 }
