@@ -24,6 +24,8 @@ pub enum WindLoadsError {
     FileNotFound(#[from] std::io::Error),
     #[error("pickle reader failed")]
     PickleRead(#[from] pkl::Error),
+    #[error("Failed getting outputs")]
+    Outputs(#[from] crate::io::IOError),
 }
 
 //type ThisResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -79,19 +81,17 @@ loads!(
     "OSS_M1_lcl_6F",
     OSSM1Lcl6F,
     "MC_M2_lcl_force_6F",
-    MCM2Lcl6F
+    MCM2Lcl6F,
+    "MC_M2_TE_6F",
+    MCM2TE6F,
+    "MC_M2_RB_6F",
+    MCM2RB6F
 );
 
 /// Wind loading sources
 #[derive(Default)]
 pub struct WindLoading {
-    pub oss_cring_6f: Outputs,
-    pub oss_topend_6f: Outputs,
-    pub oss_truss_6f: Outputs,
-    pub oss_gir_6f: Outputs,
-    pub oss_cell_lcl_6f: Outputs,
-    pub oss_m1_lcl_6f: Outputs,
-    pub mc_m2_lcl_6f: Outputs,
+    pub loads: Vec<IO<std::vec::IntoIter<Vec<f64>>>>,
     pub n_sample: usize,
 }
 
@@ -105,6 +105,7 @@ pub struct WindLoads {
     pub time: Vec<f64>,
     #[serde(skip)]
     n_sample: Option<usize>,
+    /*
     #[serde(skip)]
     oss_cring_6f: Outputs,
     #[serde(skip)]
@@ -119,6 +120,9 @@ pub struct WindLoads {
     oss_m1_lcl_6f: Outputs,
     #[serde(skip)]
     mc_m2_lcl_6f: Outputs,
+    */
+    #[serde(skip)]
+    tagged_loads: Vec<IO<std::vec::IntoIter<Vec<f64>>>>,
 }
 
 impl WindLoads {
@@ -153,6 +157,20 @@ impl WindLoads {
                 .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
         }
     }
+    fn tagged_load(&self, io: &Tags) -> ThisResult<Outputs> {
+        match &self.n_sample {
+            Some(n) => self
+                .loads
+                .iter()
+                .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
+                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+            None => self
+                .loads
+                .iter()
+                .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
+                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+        }
+    }
     /// Set the number of time sample
     pub fn n_sample(self, n_sample: usize) -> ThisResult<Self> {
         assert!(n_sample > 0, "n_sample must be greater than 0");
@@ -170,53 +188,65 @@ impl WindLoads {
         })
     }
     /// Selects loads on the truss
-    pub fn truss(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_truss_6f: self.to_io(&jar::OSSTruss6F::new())?,
-            ..self
-        })
+    pub fn truss(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSTruss6F {
+            data: self.tagged_load(&jar::OSSTruss6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the top-end
-    pub fn topend(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_topend_6f: self.to_io(&jar::OSSTopEnd6F::new())?,
-            ..self
-        })
+    pub fn topend(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSTopEnd6F {
+            data: self.tagged_load(&jar::OSSTopEnd6F::new())?,
+        });
+        Ok(self)
+    }
+    pub fn mount_pdr_topend(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::MCM2TE6F {
+            data: self.tagged_load(&jar::OSSTopEnd6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the C-ring
-    pub fn cring(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_cring_6f: self.to_io(&jar::OSSCRING6F::new())?,
-            ..self
-        })
+    pub fn cring(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSCRING6F {
+            data: self.tagged_load(&jar::OSSCRING6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the GIR
-    pub fn gir(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_gir_6f: self.to_io(&jar::OSSGIR6F::new())?,
-            ..self
-        })
+    pub fn gir(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSGIR6F {
+            data: self.tagged_load(&jar::OSSGIR6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the M1 cells
-    pub fn m1_cell(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_cell_lcl_6f: self.to_io(&jar::OSSCellLcl6F::new())?,
-            ..self
-        })
+    pub fn m1_cell(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSCellLcl6F {
+            data: self.tagged_load(&jar::OSSCellLcl6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the M1 segments
-    pub fn m1_segments(self) -> ThisResult<Self> {
-        Ok(Self {
-            oss_m1_lcl_6f: self.to_io(&jar::OSSM1Lcl6F::new())?,
-            ..self
-        })
+    pub fn m1_segments(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::OSSM1Lcl6F {
+            data: self.tagged_load(&jar::OSSM1Lcl6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects loads on the M2 segments
-    pub fn m2_segments(self) -> ThisResult<Self> {
-        Ok(Self {
-            mc_m2_lcl_6f: self.to_io(&jar::MCM2Lcl6F::new())?,
-            ..self
-        })
+    pub fn m2_segments(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::MCM2Lcl6F {
+            data: self.tagged_load(&jar::MCM2Lcl6F::new())?,
+        });
+        Ok(self)
+    }
+    pub fn mount_pdr_m2_segments(mut self) -> ThisResult<Self> {
+        self.tagged_loads.push(IO::MCM2RB6F {
+            data: self.tagged_load(&jar::MCM2Lcl6F::new())?,
+        });
+        Ok(self)
     }
     /// Selects all loads
     pub fn select_all(self) -> ThisResult<Self> {
@@ -232,28 +262,14 @@ impl WindLoads {
     pub fn build(self) -> ThisResult<WindLoading> {
         Ok(WindLoading {
             n_sample: self.n_sample.unwrap_or(self.len()?),
-            oss_cring_6f: self.oss_cring_6f,
-            oss_topend_6f: self.oss_topend_6f,
-            oss_truss_6f: self.oss_truss_6f,
-            oss_gir_6f: self.oss_gir_6f,
-            oss_cell_lcl_6f: self.oss_cell_lcl_6f,
-            oss_m1_lcl_6f: self.oss_m1_lcl_6f,
-            mc_m2_lcl_6f: self.mc_m2_lcl_6f,
+            loads: self.tagged_loads,
         })
     }
 }
 /// Wind loading interface
 impl IOTags for WindLoading {
     fn outputs_tags(&self) -> Vec<Tags> {
-        vec![
-            jar::OSSTopEnd6F::new(),
-            jar::MCM2Lcl6F::new(),
-            jar::OSSTruss6F::new(),
-            jar::OSSM1Lcl6F::new(),
-            jar::OSSCellLcl6F::new(),
-            jar::OSSGIR6F::new(),
-            jar::OSSCRING6F::new(),
-        ]
+        self.loads.iter().map(|x| x.into()).collect()
     }
     fn inputs_tags(&self) -> Vec<Tags> {
         unimplemented!("WindLoading takes no inputs")
@@ -264,7 +280,11 @@ impl DOS for WindLoading {
         unimplemented!()
     }
     fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>> {
-        Ok(Some(vec![
+        self.loads
+            .iter_mut()
+            .map(|x| -> Result<Option<IO<Vec<f64>>>, Box<dyn std::error::Error>> { x.into() })
+            .collect()
+        /*Ok(Some(vec![
             IO::OSSTopEnd6F {
                 data: Some(
                     self.oss_topend_6f
@@ -328,6 +348,6 @@ impl DOS for WindLoading {
                         .ok_or_else(|| "Empty")?,
                 ),
             },
-        ]))
+        ]))*/
     }
 }
