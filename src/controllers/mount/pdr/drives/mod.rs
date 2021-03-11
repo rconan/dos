@@ -47,17 +47,17 @@ build_controller!(Mount_Drv_PDR2021,
 impl<'a> IOTags for Controller<'a> {
     fn outputs_tags(&self) -> Vec<Tags> {
         vec![
-            jar::OSSAzDriveF::new(),
-            jar::OSSElDriveF::new(),
-            jar::OSSGIRDriveF::new(),
+            jar::OSSAzDriveTorque::new(),
+            jar::OSSElDriveTorque::new(),
+            jar::OSSRotDriveTorque::new(),
         ]
     }
     fn inputs_tags(&self) -> Vec<Tags> {
         vec![
             jar::MountCmd::new(),
-            jar::OSSAzDriveD::new(),
-            jar::OSSElDriveD::new(),
-            jar::OSSGIRDriveD::new(),
+            jar::OSSAzEncoderAngle::new(),
+            jar::OSSElEncoderAngle::new(),
+            jar::OSSRotEncoderAngle::new(),
         ]
     }
 }
@@ -71,19 +71,19 @@ impl<'a> DOS for Controller<'a> {
                     }
                     a -= 1;
                 }
-                IO::OSSAzDriveD { data: Some(values) } => {
+                IO::OSSAzEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_az_drive_d[k] = v;
                     }
                     a -= 1;
                 }
-                IO::OSSElDriveD { data: Some(values) } => {
+                IO::OSSElEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_el_drive_d[k] = v;
                     }
                     a -= 1;
                 }
-                IO::OSSGIRDriveD { data: Some(values) } => {
+                IO::OSSRotEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_gir_drive_d[k] = v;
                     }
@@ -99,18 +99,18 @@ impl<'a> DOS for Controller<'a> {
         {
             Ok(self)
         } else {
-            Err("Either mount drive controller MountCmd, OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".into())
+            Err("Either mount drive controller MountCmd, OSSAzEncoderAngle, OSSElEncoderAngle or OSSRotEncoderAngle not found".into())
         }
     }
     fn outputs(&mut self) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>> {
         Ok(Some(vec![
-            IO::OSSAzDriveF {
+            IO::OSSAzDriveTorque {
                 data: Some(Vec::<f64>::from(&self.oss_az_drive_f)),
             },
-            IO::OSSElDriveF {
+            IO::OSSElDriveTorque {
                 data: Some(Vec::<f64>::from(&self.oss_el_drive_f)),
             },
-            IO::OSSGIRDriveF {
+            IO::OSSRotDriveTorque {
                 data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)),
             },
         ]))

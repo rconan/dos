@@ -43,19 +43,19 @@ impl<'a> DOS for Controller<'a> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {
-                IO::OSSAzDriveD { data: Some(values) } => {
+                IO::OSSAzEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_az_drive[k] = v;
                     }
                     a -= 1;
                 }
-                IO::OSSElDriveD { data: Some(values) } => {
+                IO::OSSElEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_el_drive[k] = v;
                     }
                     a -= 1;
                 }
-                IO::OSSGIRDriveD { data: Some(values) } => {
+                IO::OSSRotEncoderAngle { data: Some(values) } => {
                     for (k, v) in values.into_iter().enumerate() {
                         self.oss_gir_drive[k] = v;
                     }
