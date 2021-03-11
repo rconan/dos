@@ -1,6 +1,13 @@
 use super::wind_loads;
 use core::fmt::Debug;
 use serde::Serialize;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum IOError {
+    #[error("No IO data (None)")]
+    NoneData,
+}
 
 macro_rules! build_io {
     ($($variant:ident),+) => {
@@ -25,11 +32,20 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T> From<&IO<()>> for IO<T> {
+        impl<T,U> From<&IO<U>> for IO<T> {
             /// Converts a `IO<T>` into an `Option<T>`
-            fn from(io: &IO<()>) -> Self {
+            fn from(io: &IO<U>) -> Self {
                 match io {
                     $(IO::$variant{ ..} => IO::$variant{ data: Default::default()}),+
+                }
+            }
+        }
+        impl<T,U: Iterator<Item=T>> From<&mut IO<U>> for Result<Option<IO<T>>,Box<dyn std::error::Error>> {
+            /// Converts a `IO<T>` into an `Option<T>`
+            fn from(io: &mut IO<U>) -> Self {
+                match io {
+                    $(IO::$variant{ data: Some(data)} => Ok(Some(IO::$variant{ data: Some(data.next().ok_or_else(|| "Empty")?)})),)+
+                        $(IO::$variant{ data: None} => Err(Box::new(IOError::NoneData)),)+
                 }
             }
         }
@@ -52,7 +68,7 @@ macro_rules! build_io {
             /// Converts a `IO<T>` into an `Option<T>`
             fn from(io: IO<T>) -> Self {
                 match io {
-                    $(IO::$variant{ data: values} => values.ok_or_else(|| "Data missing".into())),+
+                    $(IO::$variant{ data: values} => values.ok_or_else(|| format!("{:?} data missing",IO::<T>::$variant{data: None}).into())),+
                 }
             }
         }
@@ -180,6 +196,13 @@ build_io!(
     OSSAzDriveD,
     OSSElDriveD,
     OSSGIRDriveD,
+    // Mount Drives
+    OSSAzDriveTorque,
+    OSSElDriveTorque,
+    OSSRotDriveTorque,
+    OSSAzEncoderAngle,
+    OSSElEncoderAngle,
+    OSSRotEncoderAngle,
     // Azimuth, elevation, rotation drive torques
     SlewTorques,
     // Line of sight
@@ -255,8 +278,10 @@ build_io!(
     M2ReferenceBody6AxialD,
     M2ReferenceBody7AxialD,
     MountCmd,
+    // M1 control
     M1HPCmd,
-    M1HPLC
+    M1HPLC,
+    M1CGFM
 );
 
 io_match_fem!(
@@ -273,7 +298,10 @@ io_match_fem!(
             OSSAzDriveF,
             OSSElDriveF,
             OSSGIRDriveF,
-            OSSHarpointDeltaF
+            OSSHarpointDeltaF,
+            OSSAzDriveTorque,
+            OSSElDriveTorque,
+            OSSRotDriveTorque
         ),
     outputs:
         (
@@ -282,7 +310,11 @@ io_match_fem!(
             OSSGIRDriveD,
             OSSM1Lcl,
             MCM2Lcl6D,
-            OSSHardpointD
+            OSSHardpointD,
+            OSSAzEncoderAngle,
+            OSSElEncoderAngle,
+            OSSRotEncoderAngle,
+            MCM2RB6D
         )
 );
 io_match_wind_loads!(
@@ -292,5 +324,6 @@ io_match_wind_loads!(
     OSSCRING6F,
     OSSCellLcl6F,
     OSSM1Lcl6F,
-    MCM2Lcl6F
+    MCM2Lcl6F,
+    MCM2TE6F
 );
