@@ -1,5 +1,6 @@
 use crate::fem;
 use crate::{io::Tags, IOTags, DOS, IO};
+use log;
 use nalgebra as na;
 use rayon::prelude::*;
 use thiserror::Error;
@@ -28,6 +29,7 @@ pub struct DiscreteStateSpace {
     fem: Option<Box<fem::FEM>>,
     u: StateSpaceIO,
     y: StateSpaceIO,
+    zeta: Option<f64>,
 }
 impl From<fem::FEM> for DiscreteStateSpace {
     fn from(fem: fem::FEM) -> Self {
@@ -41,6 +43,12 @@ impl DiscreteStateSpace {
     pub fn sampling(self, sampling: f64) -> Self {
         Self {
             sampling: Some(sampling),
+            ..self
+        }
+    }
+    pub fn proportional_damping(self, zeta: f64) -> Self {
+        Self {
+            zeta: Some(zeta),
             ..self
         }
     }
@@ -69,7 +77,7 @@ impl DiscreteStateSpace {
         self.outputs(element.inputs_tags())
     }
     fn select_fem_io(fem: &mut fem::FEM, dos_inputs: &[Tags], dos_outputs: &[Tags]) {
-        println!("{}",fem);
+        println!("{}", fem);
         let inputs_idx: Vec<_> = fem
             .inputs
             .iter()
@@ -91,7 +99,7 @@ impl DiscreteStateSpace {
             })
             .collect();
         fem.keep_inputs(&inputs_idx).keep_outputs(&outputs_idx);
-        println!("{}",fem);
+        println!("{}", fem);
     }
     fn io2modes(fem: &fem::FEM, dos_inputs: &[Tags]) -> ThisResult<Vec<f64>> {
         use fem::IO;
@@ -190,8 +198,16 @@ impl DiscreteStateSpace {
         );
         println!("modes 2 nodes: {:?}", modes_2_nodes.shape());
         let w = fem.eigen_frequencies_to_radians();
-        let zeta = &fem.proportional_damping_vec;
-        let state_space: Vec<_> = (0..fem.n_modes())
+        let n_modes = fem.n_modes();
+        let zeta = match self.zeta {
+            Some(zeta) => {
+                log::info!("Proportional coefficients modified, new value: {:.4}", zeta);
+                vec![zeta; n_modes]
+            }
+            None => fem.proportional_damping_vec,
+        };
+        //let zeta = &fem.proportional_damping_vec;
+        let state_space: Vec<_> = (0..n_modes)
             .map(|k| {
                 let b = forces_2_modes.row(k);
                 let c = modes_2_nodes.column(k);
