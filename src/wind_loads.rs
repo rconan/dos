@@ -81,11 +81,7 @@ loads!(
     "OSS_M1_lcl_6F",
     OSSM1Lcl6F,
     "MC_M2_lcl_force_6F",
-    MCM2Lcl6F,
-    "MC_M2_TE_6F",
-    MCM2TE6F,
-    "MC_M2_RB_6F",
-    MCM2RB6F
+    MCM2Lcl6F
 );
 
 /// Wind loading sources
@@ -127,8 +123,7 @@ pub struct WindLoads {
 
 impl WindLoads {
     /// Reads the wind loads from a pickle file
-    pub fn from_pickle<P: AsRef<Path>>(path: P) -> ThisResult<Self>
-    {
+    pub fn from_pickle<P: AsRef<Path>>(path: P) -> ThisResult<Self> {
         let f = File::open(path)?;
         let r = BufReader::with_capacity(1_000_000_000, f);
         let v: serde_pickle::Value = serde_pickle::from_reader(r)?;
@@ -141,20 +136,20 @@ impl WindLoads {
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
             .ok_or(WindLoadsError::EmptyWindLoads)
     }
-    fn to_io(&self, io: &Tags) -> ThisResult<Outputs> {
-        match &self.n_sample {
-            Some(n) => self
-                .loads
-                .iter()
-                .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
-            None => self
-                .loads
-                .iter()
-                .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
-        }
-    }
+    /*fn to_io(&self, io: &Tags) -> ThisResult<Outputs> {
+            match &self.n_sample {
+                Some(n) => self
+                    .loads
+                    .iter()
+                    .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
+                    .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+                None => self
+                    .loads
+                    .iter()
+                    .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
+                    .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+            }
+    }*/
     fn tagged_load(&self, io: &Tags) -> ThisResult<Outputs> {
         match &self.n_sample {
             Some(n) => self
@@ -199,7 +194,7 @@ impl WindLoads {
         });
         Ok(self)
     }
-    pub fn mount_pdr_topend(mut self) -> ThisResult<Self> {
+    pub fn m2_asm_topend(mut self) -> ThisResult<Self> {
         self.tagged_loads.push(IO::MCM2TE6F {
             data: self.tagged_load(&jar::OSSTopEnd6F::new())?,
         });
@@ -240,7 +235,7 @@ impl WindLoads {
         });
         Ok(self)
     }
-    pub fn mount_pdr_m2_segments(mut self) -> ThisResult<Self> {
+    pub fn m2_asm_reference_bodies(mut self) -> ThisResult<Self> {
         self.tagged_loads.push(IO::MCM2RB6F {
             data: self.tagged_load(&jar::MCM2Lcl6F::new())?,
         });
@@ -250,6 +245,16 @@ impl WindLoads {
     pub fn select_all(self) -> ThisResult<Self> {
         self.topend()?
             .m2_segments()?
+            .truss()?
+            .m1_segments()?
+            .m1_cell()?
+            .gir()?
+            .cring()
+    }
+    /// Selects all loads in the ASM configuration
+    pub fn select_all_with_asm(self) -> ThisResult<Self> {
+        self.m2_asm_topend()?
+            .m2_asm_reference_bodies()?
             .truss()?
             .m1_segments()?
             .m1_cell()?
