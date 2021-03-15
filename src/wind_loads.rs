@@ -4,8 +4,9 @@
 //! Provides the time series of forces and moments at different nodes of the telescope mechanical structure
 
 use super::{
+    error,
     io::{jar, Tags},
-    IOTags, DOS, IO,
+    Error, IOTags, DOS, IO,
 };
 use crate::fem::fem_io;
 use serde;
@@ -14,8 +15,8 @@ use serde_pickle as pkl;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use thiserror::Error;
-
+//use thiserror::Error;
+/*
 #[derive(Error, Debug)]
 pub enum WindLoadsError {
     #[error("No wind loads available")]
@@ -27,9 +28,10 @@ pub enum WindLoadsError {
     #[error("Failed getting outputs")]
     Outputs(#[from] crate::io::IOError),
 }
+ */
 
 //type ThisResult<T> = Result<T, Box<dyn std::error::Error>>;
-type ThisResult<T> = Result<T, WindLoadsError>;
+type ThisResult<T> = Result<T, Error>;
 type Outputs = Option<std::vec::IntoIter<Vec<f64>>>;
 
 macro_rules! loads {
@@ -134,7 +136,10 @@ impl WindLoads {
         self.loads
             .iter()
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
-            .ok_or(WindLoadsError::EmptyWindLoads)
+            .ok_or(Error::new(
+                error::DOS::Loads(error::WindLoads::Empty),
+                "No loads",
+            ))
     }
     /*fn to_io(&self, io: &Tags) -> ThisResult<Outputs> {
             match &self.n_sample {
@@ -156,12 +161,24 @@ impl WindLoads {
                 .loads
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+                .map_or(
+                    Err(Error::new(
+                        error::DOS::Loads(error::WindLoads::Empty),
+                        "No loads",
+                    )),
+                    |x| Ok(Some(x)),
+                ),
             None => self
                 .loads
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
+                .map_or(
+                    Err(Error::new(
+                        error::DOS::Loads(error::WindLoads::Empty),
+                        "No loads",
+                    )),
+                    |x| Ok(Some(x)),
+                ),
         }
     }
     /// Set the number of time sample
