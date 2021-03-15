@@ -287,6 +287,7 @@ build_io!(
 io_match_fem!(
     inputs:
         (
+            MCM2RB6F,
             MCM2TE6F,
             OSSTopEnd6F,
             OSSTruss6F,
@@ -324,6 +325,5 @@ io_match_wind_loads!(
     OSSCRING6F,
     OSSCellLcl6F,
     OSSM1Lcl6F,
-    MCM2Lcl6F,
-    MCM2TE6F
+    MCM2Lcl6F
 );
