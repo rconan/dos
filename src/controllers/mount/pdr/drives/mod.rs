@@ -4,30 +4,30 @@ use crate::{
     IOTags, DOS, IO,
 };
 
-import_simulink!(Mount_Drv_PDR2021, U : (Mount_cmd,3,Mount_pos,20), Y : (Mount_F,20));
+import_simulink!(Mount_Drv_PDR2021, U : (Mount_cmd,3,Mount_pos,14), Y : (Mount_F,20));
 build_inputs!(
     MountCmd,
     3,
     0,
     OssAzDrive,
-    20,
+    14,
     0,
     OssElDrive,
-    20,
-    8,
+    14,
+    6,
     OssGirDrive,
-    20,
-    16
+    14,
+    10
 );
 build_outputs!(
     OssAzDrive,
     20,
-    8,
+    12,
     0,
     OssElDrive,
     20,
-    8,
-    8,
+    4,
+    12,
     OssGirDrive,
     20,
     4,
@@ -114,5 +114,40 @@ impl<'a> DOS for Controller<'a> {
                 data: Some(Vec::<f64>::from(&self.oss_gir_drive_f)),
             },
         ]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdr_mount_drive_zeros() {
+        let mut mnt_drives = Controller::new();
+        for _ in 0..5 {
+            let u = vec![
+                jar::MountCmd::with(vec![0f64; 3]),
+                jar::OSSAzEncoderAngle::with(vec![0f64; 6]),
+                jar::OSSElEncoderAngle::with(vec![0f64; 4]),
+                jar::OSSRotEncoderAngle::with(vec![0f64; 4]),
+            ];
+            let y = mnt_drives.in_step_out(u).unwrap();
+            println!("PDR MOUNT DRIVE ZEROS TEST: {:#?}", y);
+        }
+    }
+
+    #[test]
+    fn pdr_mount_drive_ones() {
+        let mut mnt_drives = Controller::new();
+        for _ in 0..5 {
+            let u = vec![
+                jar::MountCmd::with(vec![1f64; 3]),
+                jar::OSSAzEncoderAngle::with(vec![1f64; 6]),
+                jar::OSSElEncoderAngle::with(vec![1f64; 4]),
+                jar::OSSRotEncoderAngle::with(vec![1f64; 4]),
+            ];
+            let y = mnt_drives.in_step_out(u).unwrap();
+            println!("PDR MOUNT DRIVE ONES TEST: {:#?}", y);
+        }
     }
 }

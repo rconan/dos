@@ -4,20 +4,20 @@ use crate::{
     IOTags, DOS, IO,
 };
 
-import_simulink!(Mount_Control, U : (Mount_SP,3,Mount_FB,20), Y : (Mount_cmd,3));
+import_simulink!(Mount_Control, U : (Mount_SP,3,Mount_FB,14), Y : (Mount_cmd,3));
 build_inputs!(
     SP,
     3,
     0,
     OssAzDrive,
-    20,
+    14,
     0,
     OssElDrive,
-    20,
-    8,
+    14,
+    4,
     OssGirDrive,
-    20,
-    16
+    14,
+    10
 );
 build_outputs!(MountCmd, 3);
 build_controller!(Mount_Control,
@@ -33,9 +33,9 @@ impl<'a> IOTags for Controller<'a> {
     }
     fn inputs_tags(&self) -> Vec<Tags> {
         vec![
-            jar::OSSAzDriveD::new(),
-            jar::OSSElDriveD::new(),
-            jar::OSSGIRDriveD::new(),
+            jar::OSSAzEncoderAngle::new(),
+            jar::OSSElEncoderAngle::new(),
+            jar::OSSRotEncoderAngle::new(),
         ]
     }
 }
@@ -78,5 +78,36 @@ impl<'a> DOS for Controller<'a> {
         Ok(Some(vec![IO::MountCmd {
             data: Some(Vec::<f64>::from(&self.cmd)),
         }]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdr_mount_control_zeros_test() {
+        let mut mnt_ctrl = Controller::new();
+        let u = vec![
+            jar::OSSAzEncoderAngle::with(vec![0f64; 8]),
+            jar::OSSElEncoderAngle::with(vec![0f64; 8]),
+            jar::OSSRotEncoderAngle::with(vec![0f64; 4]),
+        ];
+        let y = mnt_ctrl.in_step_out(u).unwrap();
+        println!("PDR MOUNT CONTROL ZEROS TEST: {:#?}", y);
+    }
+
+    #[test]
+    fn pdr_mount_control_ones_test() {
+        let mut mnt_ctrl = Controller::new();
+        for k in 0..5 {
+            let u = vec![
+                jar::OSSAzEncoderAngle::with(vec![1f64; 8]),
+                jar::OSSElEncoderAngle::with(vec![1f64; 8]),
+                jar::OSSRotEncoderAngle::with(vec![1f64; 4]),
+            ];
+            let y = mnt_ctrl.in_step_out(u).unwrap();
+            println!("PDR MOUNT CONTROL ONES TEST: {:#?}", y);
+        }
     }
 }
