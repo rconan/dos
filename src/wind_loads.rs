@@ -127,9 +127,7 @@ pub struct WindLoads {
 
 impl WindLoads {
     /// Reads the wind loads from a pickle file
-    pub fn from_pickle<P>(path: P) -> ThisResult<Self>
-    where
-        P: AsRef<Path> + std::fmt::Display + Copy,
+    pub fn from_pickle<P: AsRef<Path>>(path: P) -> ThisResult<Self>
     {
         let f = File::open(path)?;
         let r = BufReader::with_capacity(1_000_000_000, f);
