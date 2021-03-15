@@ -1,3 +1,7 @@
+//! DOS inputs/outputs
+//!
+//! Provides the definitions for all the inputs and outputs used by DOS
+
 use super::wind_loads;
 use core::fmt::Debug;
 use serde::Serialize;
@@ -11,7 +15,7 @@ pub enum IOError {
 
 macro_rules! build_io {
     ($($variant:ident),+) => {
-        /// DOS inputs/ouputs
+        /// Inputs/Outputs definition
         #[derive(Debug,Clone,Serialize)]
         pub enum IO<T> {
             $($variant{data: Option<T>}),+
@@ -97,16 +101,15 @@ macro_rules! build_io {
             }
         }
         pub mod jar {
+            //! A DOS Inputs/Outputs builder
             use super::IO;
-            /// DOS IO builder
             $(pub struct $variant {}
               impl $variant {
+                  /// Creates a new `IO` type variant with `data` set to `None`
                   pub fn new<T>() -> IO<T> {
                       IO::$variant{ data: None}
                   }
-                  pub fn size(data: usize) -> IO<usize> {
-                      IO::$variant{ data: Some(data)}
-                  }
+                  /// Creates a new `IO` type variant filled with `data`
                   pub fn with<T>(data: T) -> IO<T> {
                       IO::$variant{ data: Some(data)}
                   }
@@ -157,6 +160,7 @@ macro_rules! io_match_wind_loads {
     };
 }
 
+/// A type for empty `IO`
 pub type Tags = IO<()>;
 
 build_io!(
