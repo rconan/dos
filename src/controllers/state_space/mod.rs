@@ -3,6 +3,9 @@ use crate::{io::Tags, IOTags, DOS, IO};
 use log;
 use nalgebra as na;
 use rayon::prelude::*;
+use serde_pickle as pickle;
+use std::fs::File;
+use std::path::Path;
 use thiserror::Error;
 
 pub mod bilinear;
@@ -30,6 +33,8 @@ pub struct DiscreteStateSpace {
     u: StateSpaceIO,
     y: StateSpaceIO,
     zeta: Option<f64>,
+    eigen_frequencies: Option<Vec<(usize, f64)>>,
+    max_eigen_frequency: Option<f64>,
 }
 impl From<fem::FEM> for DiscreteStateSpace {
     fn from(fem: fem::FEM) -> Self {
@@ -51,6 +56,28 @@ impl DiscreteStateSpace {
             zeta: Some(zeta),
             ..self
         }
+    }
+    pub fn eigen_frequencies(self, eigen_frequencies: Vec<(usize, f64)>) -> Self {
+        Self {
+            eigen_frequencies: Some(eigen_frequencies),
+            ..self
+        }
+    }
+    pub fn max_eigen_frequency(self, max_eigen_frequency: f64) -> Self {
+        Self {
+            max_eigen_frequency: Some(max_eigen_frequency),
+            ..self
+        }
+    }
+    pub fn dump_eigen_frequencies<P: AsRef<Path>>(self, path: P) -> Self {
+        let mut file = File::create(path).unwrap();
+        pickle::to_writer(
+            &mut file,
+            &self.fem.as_ref().unwrap().eigen_frequencies,
+            true,
+        )
+        .unwrap();
+        self
     }
     pub fn inputs(self, mut v_u: Vec<Tags>) -> Self {
         let mut u = self.u;
@@ -197,8 +224,24 @@ impl DiscreteStateSpace {
             &fem_modes2io.into_iter().flatten().collect::<Vec<f64>>(),
         );
         println!("modes 2 nodes: {:?}", modes_2_nodes.shape());
-        let w = fem.eigen_frequencies_to_radians();
-        let n_modes = fem.n_modes();
+        let mut w = fem.eigen_frequencies_to_radians();
+        if let Some(eigen_frequencies) = self.eigen_frequencies {
+            log::info!("Eigen values modified");
+            eigen_frequencies.into_iter().for_each(|(i, v)| {
+                w[i] = v.to_radians();
+            });
+        }
+        let n_modes = match self.max_eigen_frequency {
+            Some(max_ef) => {
+                fem.eigen_frequencies
+                    .iter()
+                    .fold(0, |n, ef| if ef <= &max_ef { n + 1 } else { n })
+            }
+            None => fem.n_modes(),
+        };
+        if let Some(max_ef) = self.max_eigen_frequency {
+            log::info!("Eigen frequencies truncate to {:.3}Hz, hence reducing the number of modes from {} down to {}",max_ef,fem.n_modes(),n_modes)
+        }
         let zeta = match self.zeta {
             Some(zeta) => {
                 log::info!("Proportional coefficients modified, new value: {:.4}", zeta);
@@ -206,7 +249,6 @@ impl DiscreteStateSpace {
             }
             None => fem.proportional_damping_vec,
         };
-        //let zeta = &fem.proportional_damping_vec;
         let state_space: Vec<_> = (0..n_modes)
             .map(|k| {
                 let b = forces_2_modes.row(k);
