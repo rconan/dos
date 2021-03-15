@@ -20,3 +20,6 @@ simple_logger = "1.11.0"
 
 [build-dependencies]
 cc = "1.0.67"
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--html-in-header", "katex-header.html" ]

@@ -1,3 +1,6 @@
+//! This module contains the state space model of the telescope structure
+
+
 use crate::fem;
 use crate::{io::Tags, IOTags, DOS, IO};
 use log;
@@ -9,8 +12,10 @@ use std::path::Path;
 use thiserror::Error;
 
 pub mod bilinear;
+#[doc(inline)]
 pub use bilinear::Bilinear;
 pub mod exponential;
+#[doc(inline)]
 pub use exponential::Exponential;
 
 #[derive(Error, Debug)]
@@ -26,6 +31,7 @@ pub enum StateSpaceError {
 type ThisResult<T> = Result<T, StateSpaceError>;
 type StateSpaceIO = Option<Vec<Tags>>;
 
+/// This structure is the state space model builder based on a builder pattern design
 #[derive(Default)]
 pub struct DiscreteStateSpace {
     sampling: Option<f64>,
@@ -37,6 +43,7 @@ pub struct DiscreteStateSpace {
     max_eigen_frequency: Option<f64>,
 }
 impl From<fem::FEM> for DiscreteStateSpace {
+    /// Creates a state space model builder from a FEM structure
     fn from(fem: fem::FEM) -> Self {
         Self {
             fem: Some(Box::new(fem)),
@@ -45,30 +52,43 @@ impl From<fem::FEM> for DiscreteStateSpace {
     }
 }
 impl DiscreteStateSpace {
+    /// Set the sampling rate on Hz of the discrete state space model
     pub fn sampling(self, sampling: f64) -> Self {
         Self {
             sampling: Some(sampling),
             ..self
         }
     }
+    /// Set the same proportional damping coefficients to all the modes
     pub fn proportional_damping(self, zeta: f64) -> Self {
         Self {
             zeta: Some(zeta),
             ..self
         }
     }
+    /// Overwrites some eigen frequencies in Hz
+    ///
+    /// Example 
+    /// ```rust
+    /// // Setting the 1st 3 eigen values to 0
+    /// fem_ss.eigen_frequencies(vec![(0,0.),(1,0.),(2,0.)])
+    /// ```
     pub fn eigen_frequencies(self, eigen_frequencies: Vec<(usize, f64)>) -> Self {
         Self {
             eigen_frequencies: Some(eigen_frequencies),
             ..self
         }
     }
+    /// Truncates the eigen frequencies to and including `max_eigen_frequency`
+    ///
+    /// The number of modes is set accordingly
     pub fn max_eigen_frequency(self, max_eigen_frequency: f64) -> Self {
         Self {
             max_eigen_frequency: Some(max_eigen_frequency),
             ..self
         }
     }
+    /// Saves the eigen frequencies to a pickle data file
     pub fn dump_eigen_frequencies<P: AsRef<Path>>(self, path: P) -> Self {
         let mut file = File::create(path).unwrap();
         pickle::to_writer(
@@ -79,6 +99,7 @@ impl DiscreteStateSpace {
         .unwrap();
         self
     }
+    /// Sets the model inputs from a vector of [IO]
     pub fn inputs(self, mut v_u: Vec<Tags>) -> Self {
         let mut u = self.u;
         if u.is_none() {
@@ -88,9 +109,11 @@ impl DiscreteStateSpace {
         }
         Self { u, ..self }
     }
+    /// Sets the model inputs based on the outputs of another component
     pub fn inputs_from(self, element: &dyn IOTags) -> Self {
         self.inputs(element.outputs_tags())
     }
+    /// Sets the model outputs from a vector of [IO]
     pub fn outputs(self, mut v_y: Vec<Tags>) -> Self {
         let mut y = self.y;
         if y.is_none() {
@@ -100,6 +123,7 @@ impl DiscreteStateSpace {
         }
         Self { y, ..self }
     }
+    /// Sets the model outputs based on the inputs of another component
     pub fn outputs_to(self, element: &dyn IOTags) -> Self {
         self.outputs(element.inputs_tags())
     }
@@ -190,6 +214,7 @@ impl DiscreteStateSpace {
             })
             .collect())
     }
+    /// Builds the state space discrete model
     pub fn build(self) -> ThisResult<DiscreteModalSolver> {
         let tau = self.sampling.map_or(
             Err(StateSpaceError::MissingArguments("sampling".to_owned())),
@@ -240,7 +265,7 @@ impl DiscreteStateSpace {
             None => fem.n_modes(),
         };
         if let Some(max_ef) = self.max_eigen_frequency {
-            log::info!("Eigen frequencies truncate to {:.3}Hz, hence reducing the number of modes from {} down to {}",max_ef,fem.n_modes(),n_modes)
+            log::info!("Eigen frequencies truncated to {:.3}Hz, hence reducing the number of modes from {} down to {}",max_ef,fem.n_modes(),n_modes)
         }
         let zeta = match self.zeta {
             Some(zeta) => {
@@ -273,13 +298,19 @@ impl DiscreteStateSpace {
     }
 }
 
+/// This structure represents the actual state space model of the telescope
+///
+/// The state space discrete model is made of several discrete 2nd order different equation solvers, all independent and solved concurrently
 #[derive(Debug, Default)]
 pub struct DiscreteModalSolver {
+    /// Model input vector
     pub u: Vec<f64>,
     u_tags: Vec<Tags>,
+    /// Model output vector
     pub y: Vec<f64>,
     y_sizes: Vec<usize>,
     y_tags: Vec<Tags>,
+    /// vector of state models
     pub state_space: Vec<Exponential>,
 }
 impl Iterator for DiscreteModalSolver {

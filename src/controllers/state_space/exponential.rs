@@ -1,9 +1,75 @@
+//! This module is used to convert a continuous second order differential equation into a discretized state space model
+//!
+//! A continuous second order differential equation is given as $$\ddot q + 2\omega\zeta\dot q + \omega^2 q = \vec b\cdot \vec u$$
+//! with the output $$\vec y=q\vec c$$
+//! The ODE can be written as the state space model:
+//! $$
+//! \dot x = Ax + Bu
+//! $$
+//! $$
+//! y = Cx
+//! $$
+//! where
+//! ```math
+//! x = \begin{bmatrix}
+//! q \\
+//! \dot q
+//! \end{bmatrix},
+//! = \begin{bmatrix}
+//! 0 & 1 \\
+//! -\omega^2 & -2\omega\zeta
+//! \end{bmatrix}
+//! ,
+//! B = \begin{bmatrix}
+//! \vec 0 \\
+//! \vec b
+//! \end{bmatrix}
+//! ,
+//! C = \begin{bmatrix}
+//! \vec c & \vec 0
+//! \end{bmatrix}
+//! ```
+//! The continuous state space model is transformed into a discrete state space model
+//! $$
+//! x[k+1] = A_d x\[k\] + B_d u\[k\]
+//! $$
+//! $$
+//! y\[k\] = C_d x\[k\]
+//! $$
+//! where
+//! $$ A_d = \exp(A\tau),$$
+//! $$ B_d = \tau^{-1/2}A^{-1}(A_d-I)B,$$
+//! $$ C_d = \tau^{-1/2}C A^{-1}(A_d-I)$$
+//! and $`\tau`$ is the sample time.
+//!
+//! [$`A_d = \exp(A\tau)`$](https://www.wolframalpha.com/input/?i=Matrixexp%5B%7B%7B0%2Ct%7D%2C%7B-tx%5E2%2C-2txy%7D%7D%5D)=
+//! ```math
+//! A_d = \begin{bmatrix}
+//! {\alpha_+\beta_- + \alpha_-\beta_+ \over 2z} & {\beta_- - \beta_+ \over 2z} \\
+//! {x^2 (\beta_+ - \beta_-) \over 2z} & {\alpha_-\beta_- + \alpha_+\beta_+ \over 2z}
+//! \end{bmatrix}
+//! ```
+//! [$`A^{-1}`$](https://www.wolframalpha.com/input/?i=inverse+%7B%7B0%2C+1%7D%2C+%7B-x%5E2%2C+-2yx%7D%7D)=
+//! ```math
+//! A^{-1} = \begin{bmatrix}
+//! -2yx^{-1} & -x^{-2} \\
+//! 1 & 0
+//! \end{bmatrix}
+//! ```
+//! with $`x=\omega`$, $`y=\zeta`$, $`z=x^2\sqrt{y^2-1}`$, $`\alpha_-=z-xy`$, $`\alpha_+=z+xy`$, $`\beta_-=\exp(\tau\alpha_-)`$, $`\beta_+=\exp(-\tau\alpha_+)`$
+//! 
+
+// https://en.wikipedia.org/wiki/Discretization
+// https://www.wolframalpha.com/input/?i=inverse+%7B%7B0%2C+1%7D%2C+%7B-x%5E2%2C+-2yx%7D%7D
+// https://www.wolframalpha.com/input/?i=Matrixexp%5B%7B%7B0%2Ct%7D%2C%7B-tx%5E2%2C-2txy%7D%7D%5D
+
 use nalgebra::Matrix2;
 use num_complex::Complex;
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct Exponential {
+    // Sampling time is second
     pub tau: f64,
     pub q: (f64, f64, f64, f64),
     pub m: (f64, f64, f64, f64),
