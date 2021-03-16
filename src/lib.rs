@@ -23,7 +23,7 @@ pub mod telltale;
 pub mod wind_loads;
 pub mod error;
 
-use error::Error;
+use error::DOSError;
 use fem;
 use io::IO;
 #[doc(inline)]
@@ -53,11 +53,11 @@ pub trait DOS {
     /// Passes a vector of input data to a model component
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>>;
     /// Updates the state of a model component for one time step
-    fn step(&mut self) -> Result<&mut Self, Error>
+    fn step(&mut self) -> Result<&mut Self, DOSError<()>>
     where
         Self: Sized + Iterator,
     {
-        self.next().and(Some(self)).ok_or_else(|| Error::new(error::DOS::Step, "Failed stepping the component"))
+        self.next().and(Some(self)).ok_or_else(|| DOSError::Step)
     }
     /// Combines `inputs`, `step` and `outputs` in a single method
     ///

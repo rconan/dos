@@ -10,34 +10,27 @@
 //!  - the top-end
 
 use super::{
-    error,
     io::{jar, Tags},
-    Error, IOTags, DOS, IO,
+    DOSError, IOTags, DOS, IO,
 };
-use crate::fem::fem_io;
 use serde;
 use serde::Deserialize;
 use serde_pickle as pkl;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-//use thiserror::Error;
-/*
-#[derive(Error, Debug)]
+
+#[derive(Clone, Debug)]
 pub enum WindLoadsError {
-    #[error("No wind loads available")]
-    EmptyWindLoads,
-    #[error("Windload file not found")]
-    FileNotFound(#[from] std::io::Error),
-    #[error("pickle reader failed")]
-    PickleRead(#[from] pkl::Error),
-    #[error("Failed getting outputs")]
-    Outputs(#[from] crate::io::IOError),
+    Len,
+    Empty,
+    FileNotFound,
+    PickleRead,
+    Outputs,
 }
- */
 
 //type ThisResult<T> = Result<T, Box<dyn std::error::Error>>;
-type ThisResult<T> = Result<T, Error>;
+type ThisResult<T> = Result<T, DOSError<WindLoadsError>>;
 type Outputs = Option<std::vec::IntoIter<Vec<f64>>>;
 
 macro_rules! loads {
@@ -112,10 +105,7 @@ impl WindLoads {
         self.loads
             .iter()
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
-            .ok_or(Error::new(
-                error::DOS::Loads(error::WindLoads::Empty),
-                "No loads",
-            ))
+            .ok_or(DOSError::Component(WindLoadsError::Len))
     }
     fn tagged_load(&self, io: &Tags) -> ThisResult<Outputs> {
         match &self.n_sample {
@@ -123,11 +113,7 @@ impl WindLoads {
                 .loads
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .map_or(
-                    Err(Error::new(
-                        error::DOS::Loads(error::WindLoads::Empty),
-                        "No loads",
-                    )),
+                .map_or(Err(DOSError::Component(WindLoadsError::Empty)),
                     |x| Ok(Some(x)),
                 ),
             None => self
@@ -135,10 +121,7 @@ impl WindLoads {
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
                 .map_or(
-                    Err(Error::new(
-                        error::DOS::Loads(error::WindLoads::Empty),
-                        "No loads",
-                    )),
+                    Err(DOSError::Component(WindLoadsError::Empty)),
                     |x| Ok(Some(x)),
                 ),
         }
