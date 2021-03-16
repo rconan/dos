@@ -38,7 +38,10 @@
 //! ```
 
 use crate::fem;
-use crate::{io::Tags, DOSError, IOTags, DOS, IO};
+use crate::{
+    io::{IOError, Tags},
+    DOSError, IOTags, DOS, IO,
+};
 use log;
 use nalgebra as na;
 use rayon::prelude::*;
@@ -386,11 +389,14 @@ impl Iterator for DiscreteModalSolver<Exponential> {
 }
 
 impl DOS for DiscreteModalSolver<Exponential> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, Box<dyn std::error::Error>> {
+    fn inputs(
+        &mut self,
+        data: Vec<IO<Vec<f64>>>,
+    ) -> std::result::Result<&mut Self, Box<dyn std::error::Error>> {
         self.u = data
             .into_iter()
-            .map(|x| std::result::Result::<Vec<f64>, Box<dyn std::error::Error>>::from(x))
-            .collect::<std::result::Result<Vec<Vec<f64>>, Box<dyn std::error::Error>>>()?
+            .map(|x| std::result::Result::<Vec<f64>, DOSError<IOError>>::from(x))
+            .collect::<std::result::Result<Vec<Vec<f64>>, DOSError<IOError>>>()?
             .into_iter()
             .flatten()
             .collect();

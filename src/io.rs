@@ -2,7 +2,7 @@
 //!
 //! Provides the definitions for all the inputs and outputs used by DOS
 
-use super::{wind_loads,DOSError};
+use super::{wind_loads, DOSError};
 use core::fmt::Debug;
 use serde::Serialize;
 
@@ -73,11 +73,15 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T: Debug> From<IO<T>> for Result<T,Box<dyn std::error::Error>> {
+        impl<T: Debug> From<IO<T>> for Result<T,DOSError<IOError>> {
             /// Converts a `IO<T>` into an `Option<T>`
             fn from(io: IO<T>) -> Self {
                 match io {
-                    $(IO::$variant{ data: values} => values.ok_or_else(|| format!("{:?} data missing",IO::<T>::$variant{data: None}).into())),+
+                    $(IO::$variant{ data: values} =>
+                      values.ok_or_else(||
+                                        //format!("{:?} data missing",IO::<T>::$variant{data: None}).into()
+                                        DOSError::Component(IOError::Missing(format!("{:?} data missing",IO::<T>::$variant{data: None})))
+                    )),+
                 }
             }
         }
