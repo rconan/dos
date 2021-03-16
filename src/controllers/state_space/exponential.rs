@@ -15,7 +15,7 @@
 //! q \\
 //! \dot q
 //! \end{bmatrix},
-//! = \begin{bmatrix}
+//! A = \begin{bmatrix}
 //! 0 & 1 \\
 //! -\omega^2 & -2\omega\zeta
 //! \end{bmatrix}
@@ -57,7 +57,7 @@
 //! \end{bmatrix}
 //! ```
 //! with $`x=\omega`$, $`y=\zeta`$, $`z=x^2\sqrt{y^2-1}`$, $`\alpha_-=z-xy`$, $`\alpha_+=z+xy`$, $`\beta_-=\exp(\tau\alpha_-)`$, $`\beta_+=\exp(-\tau\alpha_+)`$
-//! 
+//!
 
 // https://en.wikipedia.org/wiki/Discretization
 // https://www.wolframalpha.com/input/?i=inverse+%7B%7B0%2C+1%7D%2C+%7B-x%5E2%2C+-2yx%7D%7D
@@ -67,18 +67,23 @@ use nalgebra::Matrix2;
 use num_complex::Complex;
 use serde::Serialize;
 
+/// This structure is used to convert a continuous 2nd order ODE into a discrete state space model
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct Exponential {
-    // Sampling time is second
+    /// Sampling time is second
     pub tau: f64,
-    pub q: (f64, f64, f64, f64),
-    pub m: (f64, f64, f64, f64),
-    pub b: Vec<f64>,
-    pub c: Vec<f64>,
+    q: (f64, f64, f64, f64),
+    m: (f64, f64, f64, f64),
+    b: Vec<f64>,
+    c: Vec<f64>,
+    /// State space model output vector
     pub y: Vec<f64>,
     x: (f64, f64),
 }
 impl Exponential {
+    /// Creates a discrete state space model from a 2nd order ODE
+    ///
+    /// Creates a new structure from the sampling time $`\tau`$, the eigen frequency $`\omega`$ in radians, the damping coefficient $`\zeta`$ and the vectors $`b`$ and $`c`$ that converts a input vector to a modal coefficient and a model coefficient to an output vector, respectively
     pub fn from_second_order(
         tau: f64,
         omega: f64,
@@ -121,6 +126,7 @@ impl Exponential {
             x: (0f64, 0f64),
         }
     }
+    /// Returns the state space model output
     pub fn solve(&mut self, u: &[f64]) -> &[f64] {
         let (x0, x1) = self.x;
         let s = self.m.0 * x0 + self.m.1 * x1;

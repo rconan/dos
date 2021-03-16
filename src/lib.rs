@@ -8,11 +8,11 @@
 //!  - the wind loads that are applied to the telescope.
 //!
 //! An end-to-end simulation is divided into components, each represented by a structure:
-//!  - [`DiscreteModalsolver`](crate::controllers::state_space::DiscreteStateSpace) for the finite element model of the telescope,
+//!  - [`DiscreteModalsolver`](crate::controllers::state_space::DiscreteStateSpace) for the finite element model of the telescope ([example](crate::controllers::state_space)),
 //!  - [`WindLoading`] for the wind loads,
 //!  - `Controller` for each subsystem controller.
 //!
-//! Each component structure contains a [`Vec`] of either inputs, or outputs or both that corresponds to some variant of the [`IO`] enum type.
+//! Each component structure contains a [`Vec`] of either inputs, outputs or both that corresponds to some variant of the [`IO`] enum type.
 //! Each component structure must implement the [`Iterator`] and the [`DOS`] traits.
 //! The [`next`](core::iter::Iterator::next) method of the [`Iterator`] trait is used to update the state of the component at each time step.
 //! The [`inputs`](crate::DOS::inputs) method of the [`DOS`] trait passes inputs data to the components whereas the [`outputs`](crate::DOS::outputs) method returns the component outputs.
