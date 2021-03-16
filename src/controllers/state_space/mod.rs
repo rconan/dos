@@ -1,5 +1,41 @@
-//! This module contains the state space model of the telescope structure
-
+//! This module is used to build the state space model of the telescope structure
+//!
+//! A state space model is represented by the structure [`DiscreteModalSolver`] that is created using the builder [`DiscreteStateSpace`].
+//! The transformation of the FEM continuous 2nd order differential equation into a discrete state space model is performed by the [`Exponential`] structure (for the details of the transformation see the module [`exponential`]).
+//!
+//! # Example
+//! The following example loads a FEM model from a pickle file and converts it into a state space model setting the sampling rate and the damping coefficients and truncating the eigen frequencies. A single input and a single output are selected, the input is initialized to 0 and we assert than the output is effectively 0 after one time step.
+//! ```no_run
+//! use dos::{controllers::state_space::DiscreteStateSpace, io::jar, DOS};
+//! use fem::FEM;
+//! use std::path::Path;
+//! use simple_logger::SimpleLogger;
+//! 
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     SimpleLogger::new().init().unwrap();
+//!     let sampling_rate = 1e3; // Hz
+//!     let fem_data_path = Path::new("data").join("20210225_1447_MT_mount_v202102_ASM_wind2");
+//!     let fem = FEM::from_pickle(fem_data_path.join("modal_state_space_model_2ndOrder.pkl"))?;
+//!     let mut fem_ss = DiscreteStateSpace::from(fem)
+//!         .sampling(sampling_rate)
+//!         .proportional_damping(2. / 100.)
+//!         .max_eigen_frequency(75.0) // Hz
+//!         .inputs(vec![jar::OSSM1Lcl6F::new()])
+//!         .outputs(vec![jar::OSSM1Lcl::new()])
+//!         .build()?;
+//!     let y = fem_ss
+//!         .inputs(vec![jar::OSSM1Lcl6F::with(vec![0f64; 42])])?
+//!         .step()?
+//!         .outputs()?;
+//!     assert_eq!(
+//!         Result::<Vec<f64>, Box<dyn std::error::Error>>::from(y.unwrap()[0].clone())?
+//!             .iter()
+//!             .sum::<f64>(),
+//!         0f64
+//!     );
+//!     Ok(())
+//! }
+//! ```
 
 use crate::fem;
 use crate::{io::Tags, IOTags, DOS, IO};
@@ -215,7 +251,7 @@ impl DiscreteStateSpace {
             .collect())
     }
     /// Builds the state space discrete model
-    pub fn build(self) -> ThisResult<DiscreteModalSolver> {
+    pub fn build(self) -> ThisResult<DiscreteModalSolver<Exponential>> {
         let tau = self.sampling.map_or(
             Err(StateSpaceError::MissingArguments("sampling".to_owned())),
             |x| Ok(1f64 / x),
@@ -302,7 +338,7 @@ impl DiscreteStateSpace {
 ///
 /// The state space discrete model is made of several discrete 2nd order different equation solvers, all independent and solved concurrently
 #[derive(Debug, Default)]
-pub struct DiscreteModalSolver {
+pub struct DiscreteModalSolver<T> {
     /// Model input vector
     pub u: Vec<f64>,
     u_tags: Vec<Tags>,
@@ -311,9 +347,9 @@ pub struct DiscreteModalSolver {
     y_sizes: Vec<usize>,
     y_tags: Vec<Tags>,
     /// vector of state models
-    pub state_space: Vec<Exponential>,
+    pub state_space: Vec<T>,
 }
-impl Iterator for DiscreteModalSolver {
+impl Iterator for DiscreteModalSolver<Exponential> {
     type Item = ();
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.y.len();
@@ -344,7 +380,7 @@ impl Iterator for DiscreteModalSolver {
     }
 }
 
-impl DOS for DiscreteModalSolver {
+impl DOS for DiscreteModalSolver<Exponential> {
     fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
         self.u = data
             .into_iter()
@@ -368,7 +404,7 @@ impl DOS for DiscreteModalSolver {
             .collect()
     }
 }
-impl IOTags for DiscreteModalSolver {
+impl IOTags for DiscreteModalSolver<Exponential> {
     fn outputs_tags(&self) -> Vec<Tags> {
         self.y_tags.clone()
     }
