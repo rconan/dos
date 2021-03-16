@@ -1,7 +1,13 @@
+//! This module is used to create the structure that applied wind forces and moments on the telescope FEM
 //!
-//! # FEM wind loads
-//!
-//! Provides the time series of forces and moments at different nodes of the telescope mechanical structure
+//! There are 7 wind load sources applied to the following elements of the telescope structure:
+//!  - the C-Rings
+//!  - the GIR
+//!  - the M1 cells
+//!  - the M1 segments
+//!  - the trusses
+//!  - the M2 segments
+//!  - the top-end
 
 use super::{
     error,
@@ -57,15 +63,6 @@ macro_rules! loads {
                     $(Loads::$variant(io) => io),+
                 }
             }
-            /// Match a wind load to FEM input
-            pub fn match_io(&self, fem: &fem_io::Inputs, count: usize) -> Option<&[f64]> {
-                match (fem,self) {
-                    $((fem_io::Inputs::$variant(_),Loads::$variant(v)) => {
-                        Some(v[count].as_slice())
-                    }),+
-                    _ => None
-                }
-            }
         }
     };
 }
@@ -86,14 +83,9 @@ loads!(
     MCM2Lcl6F
 );
 
-/// Wind loading sources
-#[derive(Default)]
-pub struct WindLoading {
-    pub loads: Vec<IO<std::vec::IntoIter<Vec<f64>>>>,
-    pub n_sample: usize,
-}
-
 /// Wind loads builder
+///
+/// This structure is used to read the forces and moments time series from a data file and to create the [`WindLoading`] structure
 #[derive(Deserialize)]
 pub struct WindLoads {
     /// forces and moments time series
@@ -103,22 +95,6 @@ pub struct WindLoads {
     pub time: Vec<f64>,
     #[serde(skip)]
     n_sample: Option<usize>,
-    /*
-    #[serde(skip)]
-    oss_cring_6f: Outputs,
-    #[serde(skip)]
-    oss_topend_6f: Outputs,
-    #[serde(skip)]
-    oss_truss_6f: Outputs,
-    #[serde(skip)]
-    oss_gir_6f: Outputs,
-    #[serde(skip)]
-    oss_cell_lcl_6f: Outputs,
-    #[serde(skip)]
-    oss_m1_lcl_6f: Outputs,
-    #[serde(skip)]
-    mc_m2_lcl_6f: Outputs,
-    */
     #[serde(skip)]
     tagged_loads: Vec<IO<std::vec::IntoIter<Vec<f64>>>>,
 }
@@ -141,20 +117,6 @@ impl WindLoads {
                 "No loads",
             ))
     }
-    /*fn to_io(&self, io: &Tags) -> ThisResult<Outputs> {
-            match &self.n_sample {
-                Some(n) => self
-                    .loads
-                    .iter()
-                    .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                    .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
-                None => self
-                    .loads
-                    .iter()
-                    .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                    .map_or(Err(WindLoadsError::EmptyWindLoads.into()), |x| Ok(Some(x))),
-            }
-    }*/
     fn tagged_load(&self, io: &Tags) -> ThisResult<Outputs> {
         match &self.n_sample {
             Some(n) => self
@@ -286,6 +248,18 @@ impl WindLoads {
         })
     }
 }
+
+/// Wind loading sources
+///
+/// This structure contains the time series of wind forces and moments.
+/// The time series implement the [`Iterator`] trait and the [`outputs`](crate::wind_loads::WindLoading::outputs) method step through the iterator
+#[derive(Default)]
+pub struct WindLoading {
+    pub loads: Vec<IO<std::vec::IntoIter<Vec<f64>>>>,
+    pub n_sample: usize,
+}
+
+
 /// Wind loading interface
 impl IOTags for WindLoading {
     fn outputs_tags(&self) -> Vec<Tags> {
@@ -304,70 +278,5 @@ impl DOS for WindLoading {
             .iter_mut()
             .map(|x| -> Result<Option<IO<Vec<f64>>>, Box<dyn std::error::Error>> { x.into() })
             .collect()
-        /*Ok(Some(vec![
-            IO::OSSTopEnd6F {
-                data: Some(
-                    self.oss_topend_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSTopEnd6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::MCM2Lcl6F {
-                data: Some(
-                    self.mc_m2_lcl_6f
-                        .as_mut()
-                        .ok_or_else(|| "MCM2Lcl6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::OSSTruss6F {
-                data: Some(
-                    self.oss_truss_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSTruss6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::OSSM1Lcl6F {
-                data: Some(
-                    self.oss_m1_lcl_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSM1Lcl6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::OSSCellLcl6F {
-                data: Some(
-                    self.oss_cell_lcl_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSCellLcl6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::OSSGIR6F {
-                data: Some(
-                    self.oss_gir_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSGIR6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-            IO::OSSCRING6F {
-                data: Some(
-                    self.oss_cring_6f
-                        .as_mut()
-                        .ok_or_else(|| "OSSCRING6F not available")?
-                        .next()
-                        .ok_or_else(|| "Empty")?,
-                ),
-            },
-        ]))*/
     }
 }
