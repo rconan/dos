@@ -1,5 +1,6 @@
 use std::fmt;
 
+/// The main types of DOS errors
 #[derive(Debug)]
 pub enum DOSError<T: fmt::Debug> {
     Component(T),
