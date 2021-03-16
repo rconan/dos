@@ -9,10 +9,6 @@ use serde::Serialize;
 #[derive(Clone, Debug)]
 pub enum IOError {
     Missing(String),
-    Empty,
-    FileNotFound,
-    PickleRead,
-    Outputs,
 }
 
 macro_rules! build_io {
