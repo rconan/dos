@@ -144,8 +144,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?
         }
         m1_cg_fm.as_ref().map(|x| {
-            fem_forces[2] += &x[0];
-            fem_forces[3] -= &x[0];
+            fem_forces[OSSM1Lcl6F::new()] += &x[0];
+            fem_forces[OSSCellLcl6F::new()] -= &x[0];
         });
         //u.push(fem_forces.clone());
         // FEM

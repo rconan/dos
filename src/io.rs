@@ -5,7 +5,7 @@
 use super::{wind_loads, DOSError};
 use core::fmt::Debug;
 use serde::Serialize;
-use std::ops::{AddAssign, SubAssign};
+use std::ops::{AddAssign, Index, IndexMut, SubAssign};
 
 #[derive(Clone, Debug)]
 pub enum IOError {
@@ -27,7 +27,7 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T> PartialEq<IO<T>> for IO<()> {
+        impl<T,U> PartialEq<IO<T>> for IO<U> {
             fn eq(&self, other: &IO<T>) -> bool {
                 match (self,other) {
                     $((IO::$variant{..},IO::$variant{..}) => true,)+
@@ -130,6 +130,17 @@ macro_rules! build_io {
                     }),+
                         _ => println!("Failed substracting IO")
                 }
+            }
+        }
+        impl<T> Index<IO<T>> for Vec<IO<T>> {
+            type Output = IO<T>;
+            fn index(&self, io: IO<T>) -> &Self::Output {
+                self.iter().position(|x| *x==io).map(|i| &self[i]).unwrap()
+            }
+        }
+        impl<T> IndexMut<IO<T>> for Vec<IO<T>> {
+            fn index_mut(&mut self, io: IO<T>) -> &mut Self::Output {
+                self.iter().position(|x| *x==io).map(move |i| &mut self[i]).unwrap()
             }
         }
         pub mod jar {
