@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Loading wind loads ...");
     let n_sample = 20 * 1000;
     let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
-        .n_sample(n_sample)?
+        .range(0.0, 20.0)
         .decimate(2)
         .truss()?
         .m2_asm_topend()?
@@ -162,10 +162,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             load_cells = m1_hardpoints.in_step_out(m1_hp)?;
         }
         // LOGGING
-        data.log(&ys[0])?
-            .log(&ys[1])?
-            .log(&m1_cg_fm.as_ref().unwrap()[0])?
-            .log(&load_cells.as_ref().unwrap()[0])?;
+        data.log(&ys[0])?.log(&ys[1])?;
+        //.log(&m1_cg_fm.as_ref().unwrap()[0])?
+        //.log(&load_cells.as_ref().unwrap()[0])?;
         //.log(&ys[2])?
         //.log(&ys[3])?
         //.log(&ys[4])?
