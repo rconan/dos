@@ -30,24 +30,22 @@ impl Timer {
 
 fn main() -> Result<(), Box<dyn Error>> {
     SimpleLogger::new().init().unwrap();
-    let mut fem_data_path = Path::new("data").join("20210225_1447_MT_mount_v202102_ASM_wind2");
+    let fem_data_path = Path::new("data").join("20210225_1447_MT_mount_v202102_ASM_wind2");
     // WIND LOADS
-    /*
-        let tic = Timer::tic();
-        println!("Loading wind loads ...");
-        let n_sample = 20 * 1000;
-        let mut wind_loading = WindLoads::from_pickle(
-            fem_data_path.join("wind_loads_2kHz.pkl"),
-        )?
+    let tic = Timer::tic();
+    println!("Loading wind loads ...");
+    let n_sample = 20 * 1000;
+    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
         .n_sample(n_sample)?
+        .decimate(2)
         .truss()?
-        .mount_pdr_topend()?
+        .m2_asm_topend()?
         .m1_segments()?
-        .mount_pdr_m2_segments()?
+        .m1_cell()?
+        .m2_asm_reference_bodies()?
         .build()?;
-        tic.print_toc();
-        //println!("OSS TOP END: {:?}",wind_loading.loads);
-    */
+    tic.print_toc();
+    //println!("OSS TOP END: {:?}",wind_loading.loads);
     // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
@@ -72,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     .proportional_damping(2. / 100.)
     .max_eigen_frequency(75.0)
     //.eigen_frequencies(vec![(0, 1e-9), (1, 1e-9), (2, 1e-9)])
-    //.inputs_from(&wind_loading)
+    .inputs_from(&wind_loading)
     .inputs_from(&mnt_drives)
     .outputs(vec![m1_rbm.clone(), m2_rbm.clone()])
     .outputs(vec![
@@ -84,9 +82,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     .build()?;
     tic.print_toc();
 
+    println!("FEM inputs: {:#?}", fem.inputs_tags());
+    println!("FEM outputs: {:#?}", fem.outputs_tags());
     /*
     //println!("Wind loads: {:#?}", wind_loading.outputs_tags());
-    println!("FEM inputs: {:#?}", fem.inputs_tags());
     println!("FEM outputs: {:#?}", fem.outputs_tags());
     println!("Mount control inputs: {:#?}", mnt_ctrl.inputs_tags());
     println!("Mount control outputs: {:#?}", mnt_ctrl.outputs_tags());
@@ -106,8 +105,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     // OUTPUTS
-    let mut u = vec![];
-    let mut y = vec![];
+    //let mut u = vec![];
+    //let mut y = vec![];
     //let mut y_mnt_drive = vec![];
 
     //println!("Sample #: {}", wind_loading.n_sample);
@@ -115,13 +114,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tic = Timer::tic();
     //let mut mount_drives_cmd = None;
     let mut load_cells = None;
-
+    let mut m1_cg_fm = None;
     // FEEDBACK LOOP
-    //while let Ok(Some(mut fem_forces)) = wind_loading.outputs() {
     let mut mount_drives_cmd = None;
-    let mut ramp = (0..20_000).into_iter();
-    while let Some(_) = ramp.next() {
-        let mut fem_forces = vec![];
+    //let mut ramp = (0..20_000).into_iter();
+    let mut k = 0;
+    while let Some(mut fem_forces) = wind_loading.outputs() {
+        //while let Some(_) = ramp.next() {
+        //  let mut fem_forces = vec![];
         data.step()?;
         // Mount Drives
         //println!("Mnt Drives: {:?}",mount_drives_cmd);
@@ -136,9 +136,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 fem_forces.append(&mut x);
             });
         // M1 CG Controller
-        let m1_cg_fem =
-            m1_ctrl.in_step_out(load_cells.unwrap_or(vec![M1HPLC::with(vec![0f64; 42])]))?;
-        u.push(fem_forces.clone());
+        if k % 10 == 0 {
+            m1_cg_fm = m1_ctrl.in_step_out(
+                load_cells
+                    .clone()
+                    .unwrap_or(vec![M1HPLC::with(vec![0f64; 42])]),
+            )?
+        }
+        m1_cg_fm.as_ref().map(|x| {
+            fem_forces[2] += &x[0];
+            fem_forces[3] -= &x[0];
+        });
+        //u.push(fem_forces.clone());
         // FEM
         let ys = fem.in_step_out(fem_forces)?.ok_or("FEM output is empty")?;
         // Mount Controller
@@ -147,18 +156,23 @@ fn main() -> Result<(), Box<dyn Error>> {
             Some(x)
         });
         // M1 HARDPOINT
-        let mut m1_hp = vec![M1HPCmd::with(vec![0f64; 42])];
-        m1_hp.extend_from_slice(&[ys[5].clone()]);
-        load_cells = m1_hardpoints.in_step_out(m1_hp)?;
+        if k % 10 == 0 {
+            let mut m1_hp = vec![M1HPCmd::with(vec![0f64; 42])];
+            m1_hp.extend_from_slice(&[ys[5].clone()]);
+            load_cells = m1_hardpoints.in_step_out(m1_hp)?;
+        }
         // LOGGING
         data.log(&ys[0])?
             .log(&ys[1])?
-            .log(&ys[2])?
-            .log(&ys[3])?
-            .log(&ys[4])?
-            .log(&mount_drives_cmd.as_ref().unwrap()[0])?;
-        y.push(ys); // log
-                    //y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
+            .log(&m1_cg_fm.as_ref().unwrap()[0])?
+            .log(&load_cells.as_ref().unwrap()[0])?;
+        //.log(&ys[2])?
+        //.log(&ys[3])?
+        //.log(&ys[4])?
+        //.log(&mount_drives_cmd.as_ref().unwrap()[0])?;
+        //y.push(ys); // log
+        //y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
+        k += 1;
     }
     tic.print_toc();
 
@@ -174,10 +188,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         &[
             data.time_series(m1_rbm),
             data.time_series(m2_rbm),
-            data.time_series(OSSAzEncoderAngle::new()),
-            data.time_series(OSSElEncoderAngle::new()),
-            data.time_series(OSSRotEncoderAngle::new()),
-            data.time_series(MountCmd::new()),
+            data.time_series(M1HPLC::new()),
+            data.time_series(M1CGFM::new()),
+            //data.time_series(OSSAzEncoderAngle::new()),
+            //data.time_series(OSSElEncoderAngle::new()),
+            //data.time_series(OSSRotEncoderAngle::new()),
+            //data.time_series(MountCmd::new()),
         ],
         true,
     )
