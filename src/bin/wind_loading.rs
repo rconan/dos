@@ -1,11 +1,13 @@
 use dos::{
-    controllers::{mount, state_space::DiscreteStateSpace},
+    controllers::{m1, mount::pdr as mount, state_space::DiscreteStateSpace},
     io::jar::*,
+    io::IO,
     DataLogging, WindLoads, DOS,
 };
 use fem::FEM;
 use serde_pickle as pkl;
-use std::{env, error::Error, fs::File, time::Instant};
+use simple_logger::SimpleLogger;
+use std::{env, error::Error, fs::File, path::Path, time::Instant};
 
 struct Timer {
     time: Instant,
@@ -25,7 +27,8 @@ impl Timer {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cfd_case = vec![
+    SimpleLogger::new().init().unwrap();
+    let cfd_cases = vec![
         "b2019_0z_0az_os_2ms",
         "b2019_0z_0az_os_7ms",
         "b2019_0z_0az_cd_12ms",
@@ -91,91 +94,120 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("AWS_BATCH_JOB_ARRAY_INDEX env var missing")
         .parse::<usize>()
         .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed");
+    let fem_data_path = Path::new("/fsx").join("Baseline2020").join(cfd_cases[job_idx]);
     // WIND LOADS
-    let datapath = format!("/fsx/Baseline2020/{}",cfd_case[job_idx]);
     let tic = Timer::tic();
-    println!("Loading wind loads {}...",cfd_case[job_idx]);
-    let n_sample = 2000 * 400;
-    let mut wind_loading =
-        WindLoads::from_pickle(&format!("{}/wind_loads_2kHz.pkl",datapath))?
-            .n_sample(n_sample)?
-            .select_all()?
-            .build()?;
+    println!("Loading wind loads from {:?}...",fem_data_path);
+    //let n_sample = 20 * 1000;
+    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
+        .range(0.0, 20.0)
+        .decimate(2)
+        .truss()?
+        .m2_asm_topend()?
+        .m1_segments()?
+        .m1_cell()?
+        .m2_asm_reference_bodies()?
+        .build()?;
     tic.print_toc();
-
     // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
 
+    // M1
+    let mut m1_hardpoints = m1::hp_load_cells::Controller::new();
+    let mut m1_ctrl = m1::cg_controller::Controller::new();
+
     // FEM
-    let sampling_rate = 2e3;
+    let sampling_rate = 1e3;
     let m1_rbm = OSSM1Lcl::new();
-    let m2_rbm = MCM2Lcl6D::new();
+    let m2_rbm = MCM2RB6D::new();
     let tic = Timer::tic();
     println!("Building FEM dynamic model...");
     let mut fem = DiscreteStateSpace::from(FEM::from_pickle(
-        "/fsx/Baseline2020/mt_fsm/modal_state_space_model_2ndOrder.pkl",
+        fem_data_path.join("modal_state_space_model_2ndOrder.pkl"),
     )?)
+    .dump_eigen_frequencies(fem_data_path.join("eigen_frequencies.pkl"))
     .sampling(sampling_rate)
+    .proportional_damping(2. / 100.)
+    .max_eigen_frequency(75.0)
     .inputs_from(&wind_loading)
     .inputs_from(&mnt_drives)
     .outputs(vec![m1_rbm.clone(), m2_rbm.clone()])
-    .outputs_to(&mnt_ctrl)
+    .outputs(vec![
+        OSSAzEncoderAngle::new(),
+        OSSElEncoderAngle::new(),
+        OSSRotEncoderAngle::new(),
+    ])
+    .outputs(vec![OSSHardpointD::new()])
     .build()?;
     tic.print_toc();
 
     // DATA LOGGING
     let mut data = DataLogging::new()
-        .sampling_rate(2e3)
+        .sampling_rate(sampling_rate)
         //.key(m1_rbm.clone())
         //.key(m2_rbm.clone())
         .build();
 
-    println!("Sample #: {}", wind_loading.n_sample);
     println!("Running model ...");
     let tic = Timer::tic();
-
+    let mut mount_drives_forces = Some(vec![
+        OSSAzDriveTorque::with(vec![0f64; 12]),
+        OSSElDriveTorque::with(vec![0f64; 4]),
+        OSSRotDriveTorque::with(vec![0f64; 4]),
+    ]);
+    let mut m1_cg_fm: Option<Vec<IO<Vec<f64>>>> = None;
     // FEEDBACK LOOP
-    let mut mount_drives_cmd = None;
+    let mut k = 0;
     while let Some(mut fem_forces) = wind_loading.outputs() {
-        data.step()?;
-        // Mount Drives
-        mnt_drives
-            .inputs(mount_drives_cmd.unwrap_or(vec![
-                MountCmd::with(vec![0f64; 3]),
-                OSSAzDriveD::with(vec![0f64; 8]),
-                OSSElDriveD::with(vec![0f64; 8]),
-                OSSGIRDriveD::with(vec![0f64; 4]),
-            ]))?
-            .step()?
-            .outputs()
-            .map(|mut x| {
-                fem_forces.append(&mut x);
-            });
         // FEM
-        let ys = fem
-            .inputs(fem_forces)?
-            .step()?
-            .outputs()
-            .ok_or("FEM output is empty")?;
-        // Mount Controller
-        mount_drives_cmd = mnt_ctrl
-            .inputs(ys[2..].to_vec())?
-            .step()?
-            .outputs()
+        mount_drives_forces.as_mut().map(|x| {
+            fem_forces.append(x);
+        });
+        m1_cg_fm.as_ref().map(|x| {
+            fem_forces[OSSM1Lcl6F::new()] += &x[0];
+            fem_forces[OSSCellLcl6F::new()] -= &x[0];
+        });
+        let fem_outputs = fem.in_step_out(fem_forces)?.ok_or("FEM output is empty")?;
+        // MOUNT CONTROLLER & DRIVES
+        let mount_encoders = &fem_outputs[2..5];
+        mount_drives_forces = mnt_ctrl
+            .in_step_out(mount_encoders.to_vec())?
             .and_then(|mut x| {
-                x.extend_from_slice(&ys[2..]);
-                Some(x)
-            });
-        data.log(&ys[0])?.log(&ys[1])?;
+                x.extend_from_slice(mount_encoders);
+                Some(mnt_drives.in_step_out(x.to_owned()))
+            })
+            .unwrap()?;
+        // M1 HARDPOINT & CG CONTROLLER
+        if k % 10 == 0 {
+            let mut m1_hp = vec![M1HPCmd::with(vec![0f64; 42])];
+            m1_hp.extend_from_slice(&[fem_outputs[OSSHardpointD::new()].clone()]);
+            m1_cg_fm = m1_hardpoints
+                .in_step_out(m1_hp)?
+                .and_then(|x| Some(m1_ctrl.in_step_out(x)))
+                .unwrap()?;
+        }
+        // DATA LOGGING
+        data.step()?;
+        data.log(&fem_outputs[0])?.log(&fem_outputs[1])?;
+        k += 1;
     }
     tic.print_toc();
 
     // OUTPUTS SAVING
-    let mut f = File::create(&format!("{}/wind_loading.data.pkl",datapath)).unwrap();
+    let mut f = File::create(fem_data_path.join("mount_control.data.pkl")).unwrap();
     pkl::to_writer(
         &mut f,
-        &[data.time_series(m1_rbm), data.time_series(m2_rbm)],
+        &[
+            data.time_series(m1_rbm),
+            data.time_series(m2_rbm),
+            data.time_series(M1HPLC::new()),
+            data.time_series(M1CGFM::new()),
+            //data.time_series(OSSAzEncoderAngle::new()),
+            //data.time_series(OSSElEncoderAngle::new()),
+            //data.time_series(OSSRotEncoderAngle::new()),
+            //data.time_series(MountCmd::new()),
+        ],
         true,
     )
     .unwrap();
