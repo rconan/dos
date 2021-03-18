@@ -94,13 +94,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("AWS_BATCH_JOB_ARRAY_INDEX env var missing")
         .parse::<usize>()
         .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed");
-    let fem_data_path = Path::new("/fsx").join("Baseline2020").join(cfd_cases[job_idx]);
+    let fem_data_path = Path::new("/fsx").join("Baseline2020");
     // WIND LOADS
     let tic = Timer::tic();
     println!("Loading wind loads from {:?}...",fem_data_path);
     //let n_sample = 20 * 1000;
-    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
-        .range(0.0, 20.0)
+    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join(cfd_cases[job_idx]).join("wind_loads_2kHz.pkl"))?
+        .range(0.0, 400.0)
         .decimate(2)
         .truss()?
         .m2_asm_topend()?
@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tic = Timer::tic();
     println!("Building FEM dynamic model...");
     let mut fem = DiscreteStateSpace::from(FEM::from_pickle(
-        fem_data_path.join("modal_state_space_model_2ndOrder.pkl"),
+        fem_data_path.join("20210225_1447_MT_mount_v202102_ASM_wind2.pkl"),
     )?)
     .dump_eigen_frequencies(fem_data_path.join("eigen_frequencies.pkl"))
     .sampling(sampling_rate)
@@ -195,7 +195,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     tic.print_toc();
 
     // OUTPUTS SAVING
-    let mut f = File::create(fem_data_path.join("mount_control.data.pkl")).unwrap();
+    let mut f = File::create(fem_data_path.join("windloading.20210225_1447_MT_mount_v202102_ASM_wind2.pkl")).unwrap();
     pkl::to_writer(
         &mut f,
         &[
