@@ -5,6 +5,7 @@
 use super::{wind_loads, DOSError};
 use core::fmt::Debug;
 use serde::Serialize;
+use std::ops::{AddAssign, SubAssign};
 
 #[derive(Clone, Debug)]
 pub enum IOError {
@@ -102,6 +103,32 @@ macro_rules! build_io {
             fn from((io,v): (&IO<()>,Vec<f64>)) -> Self {
                 match io {
                     $(IO::$variant{ data: _} => IO::$variant{ data: Some(v)}),+
+                }
+            }
+        }
+        impl AddAssign<&IO<Vec<f64>>> for IO<Vec<f64>> {
+            fn add_assign(&mut self, other: &IO<Vec<f64>>) {
+                match self.clone() {
+                    $(IO::$variant{ data: Some(x)} => {
+                        Option::<Vec<f64>>::from(other).map(|y| {
+                            let z: Vec<_> = x.iter().zip(y).map(|(x,y)| x+y).collect();
+                            *self = IO::$variant{ data: Some(z)};
+                        });
+                    }),+
+                        _ => println!("Failed adding IO")
+                }
+            }
+        }
+        impl SubAssign<&IO<Vec<f64>>> for IO<Vec<f64>> {
+            fn sub_assign(&mut self, other: &IO<Vec<f64>>) {
+                match self.clone() {
+                    $(IO::$variant{ data: Some(x)} => {
+                        Option::<Vec<f64>>::from(other).map(|y| {
+                            let z: Vec<_> = x.iter().zip(y).map(|(x,y)| x-y).collect();
+                            *self = IO::$variant{ data: Some(z)};
+                        });
+                    }),+
+                        _ => println!("Failed substracting IO")
                 }
             }
         }
