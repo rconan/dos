@@ -149,27 +149,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         });
         //u.push(fem_forces.clone());
         // FEM
-        let ys = fem.in_step_out(fem_forces)?.ok_or("FEM output is empty")?;
+        let fem_outputs = fem.in_step_out(fem_forces)?.ok_or("FEM output is empty")?;
         // Mount Controller
-        mount_drives_cmd = mnt_ctrl.in_step_out(ys[2..5].to_vec())?.and_then(|mut x| {
-            x.extend_from_slice(&ys[2..5]);
+        let mount_encoders = &fem_outputs[2..5];
+        mount_drives_cmd = mnt_ctrl.in_step_out(mount_encoders.to_vec())?.and_then(|mut x| {
+            x.extend_from_slice(mount_encoders);
             Some(x)
         });
         // M1 HARDPOINT
         if k % 10 == 0 {
             let mut m1_hp = vec![M1HPCmd::with(vec![0f64; 42])];
-            m1_hp.extend_from_slice(&[ys[5].clone()]);
+            m1_hp.extend_from_slice(&[fem_outputs[OSSHardpointD::new()].clone()]);
             load_cells = m1_hardpoints.in_step_out(m1_hp)?;
         }
         // LOGGING
-        data.log(&ys[0])?.log(&ys[1])?;
+        data.log(&fem_outputs[0])?.log(&fem_outputs[1])?;
         //.log(&m1_cg_fm.as_ref().unwrap()[0])?
         //.log(&load_cells.as_ref().unwrap()[0])?;
-        //.log(&ys[2])?
-        //.log(&ys[3])?
-        //.log(&ys[4])?
+        //.log(&fem_outputs[2])?
+        //.log(&fem_outputs[3])?
+        //.log(&fem_outputs[4])?
         //.log(&mount_drives_cmd.as_ref().unwrap()[0])?;
-        //y.push(ys); // log
+        //y.push(fem_outputs); // log
         //y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
         k += 1;
     }
