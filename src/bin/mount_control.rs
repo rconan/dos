@@ -1,7 +1,8 @@
 use dos::{
     controllers::{m1, mount::pdr as mount, state_space::DiscreteStateSpace},
     io::jar::*,
-    DataLogging, IOTags, WindLoads, DOS,
+    io::IO,
+    DataLogging, WindLoads, DOS,
 };
 use fem::FEM;
 use serde_pickle as pkl;
@@ -34,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // WIND LOADS
     let tic = Timer::tic();
     println!("Loading wind loads ...");
-    let n_sample = 20 * 1000;
+    //let n_sample = 20 * 1000;
     let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
         .range(0.0, 20.0)
         .decimate(2)
@@ -45,7 +46,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .m2_asm_reference_bodies()?
         .build()?;
     tic.print_toc();
-    //println!("OSS TOP END: {:?}",wind_loading.loads);
     // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
     let mut mnt_ctrl = mount::controller::Controller::new();
@@ -60,8 +60,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let m2_rbm = MCM2RB6D::new();
     let tic = Timer::tic();
     println!("Building FEM dynamic model...");
-    //fem_data_path.push("20210225_1447_MT_mount_v202102_ASM_wind2");
-    //fem_data_path.set_file_name("modal_state_space_model_2ndOrder.pkl");
     let mut fem = DiscreteStateSpace::from(FEM::from_pickle(
         fem_data_path.join("modal_state_space_model_2ndOrder.pkl"),
     )?)
@@ -69,7 +67,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     .sampling(sampling_rate)
     .proportional_damping(2. / 100.)
     .max_eigen_frequency(75.0)
-    //.eigen_frequencies(vec![(0, 1e-9), (1, 1e-9), (2, 1e-9)])
     .inputs_from(&wind_loading)
     .inputs_from(&mnt_drives)
     .outputs(vec![m1_rbm.clone(), m2_rbm.clone()])
@@ -82,21 +79,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     .build()?;
     tic.print_toc();
 
-    println!("FEM inputs: {:#?}", fem.inputs_tags());
-    println!("FEM outputs: {:#?}", fem.outputs_tags());
-    /*
-    //println!("Wind loads: {:#?}", wind_loading.outputs_tags());
-    println!("FEM outputs: {:#?}", fem.outputs_tags());
-    println!("Mount control inputs: {:#?}", mnt_ctrl.inputs_tags());
-    println!("Mount control outputs: {:#?}", mnt_ctrl.outputs_tags());
-    println!("Mount drives inputs: {:#?}", mnt_drives.inputs_tags());
-    println!("Mount drives outputs: {:#?}", mnt_drives.outputs_tags());
-    println!("M1 load cells inputs: {:#?}", m1_hardpoints.inputs_tags());
-    println!("M1 load cells outputs: {:#?}", m1_hardpoints.outputs_tags());
-    println!("M1 control inputs: {:#?}", m1_ctrl.inputs_tags());
-    println!("M1 control outputs: {:#?}", m1_ctrl.outputs_tags());
-     */
-
     // DATA LOGGING
     let mut data = DataLogging::new()
         .sampling_rate(sampling_rate)
@@ -104,85 +86,53 @@ fn main() -> Result<(), Box<dyn Error>> {
         //.key(m2_rbm.clone())
         .build();
 
-    // OUTPUTS
-    //let mut u = vec![];
-    //let mut y = vec![];
-    //let mut y_mnt_drive = vec![];
-
-    //println!("Sample #: {}", wind_loading.n_sample);
     println!("Running model ...");
     let tic = Timer::tic();
-    //let mut mount_drives_cmd = None;
-    let mut load_cells = None;
-    let mut m1_cg_fm = None;
+    let mut mount_drives_forces = Some(vec![
+        OSSAzDriveTorque::with(vec![0f64; 12]),
+        OSSElDriveTorque::with(vec![0f64; 4]),
+        OSSRotDriveTorque::with(vec![0f64; 4]),
+    ]);
+    let mut m1_cg_fm: Option<Vec<IO<Vec<f64>>>> = None;
     // FEEDBACK LOOP
-    let mut mount_drives_cmd = None;
-    //let mut ramp = (0..20_000).into_iter();
     let mut k = 0;
     while let Some(mut fem_forces) = wind_loading.outputs() {
-        //while let Some(_) = ramp.next() {
-        //  let mut fem_forces = vec![];
-        data.step()?;
-        // Mount Drives
-        //println!("Mnt Drives: {:?}",mount_drives_cmd);
-        mnt_drives
-            .in_step_out(mount_drives_cmd.unwrap_or(vec![
-                MountCmd::with(vec![0f64; 3]),
-                OSSAzEncoderAngle::with(vec![0f64; 6]),
-                OSSElEncoderAngle::with(vec![0f64; 4]),
-                OSSRotEncoderAngle::with(vec![0f64; 4]),
-            ]))?
-            .map(|mut x| {
-                fem_forces.append(&mut x);
-            });
-        // M1 CG Controller
-        if k % 10 == 0 {
-            m1_cg_fm = m1_ctrl.in_step_out(
-                load_cells
-                    .clone()
-                    .unwrap_or(vec![M1HPLC::with(vec![0f64; 42])]),
-            )?
-        }
+        // FEM
+        mount_drives_forces.as_mut().map(|x| {
+            fem_forces.append(x);
+        });
         m1_cg_fm.as_ref().map(|x| {
             fem_forces[OSSM1Lcl6F::new()] += &x[0];
             fem_forces[OSSCellLcl6F::new()] -= &x[0];
         });
-        //u.push(fem_forces.clone());
-        // FEM
         let fem_outputs = fem.in_step_out(fem_forces)?.ok_or("FEM output is empty")?;
-        // Mount Controller
+        // MOUNT CONTROLLER & DRIVES
         let mount_encoders = &fem_outputs[2..5];
-        mount_drives_cmd = mnt_ctrl.in_step_out(mount_encoders.to_vec())?.and_then(|mut x| {
-            x.extend_from_slice(mount_encoders);
-            Some(x)
-        });
-        // M1 HARDPOINT
+        mount_drives_forces = mnt_ctrl
+            .in_step_out(mount_encoders.to_vec())?
+            .and_then(|mut x| {
+                x.extend_from_slice(mount_encoders);
+                Some(mnt_drives.in_step_out(x.to_owned()))
+            })
+            .unwrap()?;
+        // M1 HARDPOINT & CG CONTROLLER
         if k % 10 == 0 {
             let mut m1_hp = vec![M1HPCmd::with(vec![0f64; 42])];
             m1_hp.extend_from_slice(&[fem_outputs[OSSHardpointD::new()].clone()]);
-            load_cells = m1_hardpoints.in_step_out(m1_hp)?;
+            m1_cg_fm = m1_hardpoints
+                .in_step_out(m1_hp)?
+                .and_then(|x| Some(m1_ctrl.in_step_out(x)))
+                .unwrap()?;
         }
-        // LOGGING
+        // DATA LOGGING
+        data.step()?;
         data.log(&fem_outputs[0])?.log(&fem_outputs[1])?;
-        //.log(&m1_cg_fm.as_ref().unwrap()[0])?
-        //.log(&load_cells.as_ref().unwrap()[0])?;
-        //.log(&fem_outputs[2])?
-        //.log(&fem_outputs[3])?
-        //.log(&fem_outputs[4])?
-        //.log(&mount_drives_cmd.as_ref().unwrap()[0])?;
-        //y.push(fem_outputs); // log
-        //y_mnt_drive.push(mount_drives_cmd.as_ref().unwrap().clone()); // log
         k += 1;
     }
     tic.print_toc();
 
     // OUTPUTS SAVING
-    //let mut f = File::create("data/wind_loads.pkl").unwrap();
-    //pkl::to_writer(&mut f, &[u, y, y_mnt_drive], true).unwrap();
-    //fem_data_path.set_file_name("mount_control.data.pkl");
     let mut f = File::create(fem_data_path.join("mount_control.data.pkl")).unwrap();
-    //    data.time_series(m1_rbm).and_then(move |x| {
-    //        data.time_series(m2_rbm).and_then(|y| Some(vec![x,y]))});
     pkl::to_writer(
         &mut f,
         &[

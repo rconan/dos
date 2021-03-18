@@ -132,17 +132,6 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T> Index<IO<T>> for Vec<IO<T>> {
-            type Output = IO<T>;
-            fn index(&self, io: IO<T>) -> &Self::Output {
-                self.iter().position(|x| *x==io).map(|i| &self[i]).unwrap()
-            }
-        }
-        impl<T> IndexMut<IO<T>> for Vec<IO<T>> {
-            fn index_mut(&mut self, io: IO<T>) -> &mut Self::Output {
-                self.iter().position(|x| *x==io).map(move |i| &mut self[i]).unwrap()
-            }
-        }
         pub mod jar {
             //! A DOS Inputs/Outputs builder
             use super::IO;
@@ -160,6 +149,17 @@ macro_rules! build_io {
             )+
         }
     };
+}
+impl<T> Index<IO<T>> for Vec<IO<T>> {
+    type Output = IO<T>;
+    fn index(&self, io: IO<T>) -> &Self::Output {
+        self.iter().position(|x| *x==io).map(|i| &self[i]).unwrap()
+    }
+}
+impl<T> IndexMut<IO<T>> for Vec<IO<T>> {
+    fn index_mut(&mut self, io: IO<T>) -> &mut Self::Output {
+        self.iter().position(|x| *x==io).map(move |i| &mut self[i]).unwrap()
+    }
 }
 macro_rules! io_match_fem {
     (inputs: ($($inputs_variant:ident),+), outputs: ($($outputs_variant:ident),+)) => {
