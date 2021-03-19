@@ -5,9 +5,10 @@ use dos::{
     DataLogging, WindLoads, DOS,
 };
 use fem::FEM;
+use rayon::prelude::*;
 use serde_pickle as pkl;
 use simple_logger::SimpleLogger;
-use std::{env, error::Error, fs::File, path::Path, time::Instant};
+use std::{error::Error, fs::File, path::Path, time::Instant};
 
 struct Timer {
     time: Instant,
@@ -26,88 +27,30 @@ impl Timer {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn job(cfd_case: &str) -> Result<(), Box<dyn Error>> {
     SimpleLogger::new().init().unwrap();
-    let cfd_cases = vec![
-        "b2019_0z_0az_os_2ms",
-        "b2019_0z_0az_os_7ms",
-        "b2019_0z_0az_cd_12ms",
-        "b2019_0z_0az_cd_17ms",
-        "b2019_0z_45az_os_2ms",
-        "b2019_0z_45az_os_7ms",
-        "b2019_0z_45az_cd_12ms",
-        "b2019_0z_45az_cd_17ms",
-        "b2019_0z_90az_os_2ms",
-        "b2019_0z_90az_os_7ms",
-        "b2019_0z_90az_cd_12ms",
-        "b2019_0z_90az_cd_17ms",
-        "b2019_0z_135az_os_2ms",
-        "b2019_0z_135az_os_7ms",
-        "b2019_0z_135az_cd_12ms",
-        "b2019_0z_135az_cd_17ms",
-        "b2019_0z_180az_os_2ms",
-        "b2019_0z_180az_os_7ms",
-        "b2019_0z_180az_cd_12ms",
-        "b2019_0z_180az_cd_17ms",
-        "b2019_30z_0az_os_2ms",
-        "b2019_30z_0az_os_7ms",
-        "b2019_30z_0az_cd_12ms",
-        "b2019_30z_0az_cd_17ms",
-        "b2019_30z_45az_os_2ms",
-        "b2019_30z_45az_os_7ms",
-        "b2019_30z_45az_cd_12ms",
-        "b2019_30z_45az_cd_17ms",
-        "b2019_30z_90az_os_2ms",
-        "b2019_30z_90az_os_7ms",
-        "b2019_30z_90az_cd_12ms",
-        "b2019_30z_90az_cd_17ms",
-        "b2019_30z_135az_os_2ms",
-        "b2019_30z_135az_os_7ms",
-        "b2019_30z_135az_cd_12ms",
-        "b2019_30z_135az_cd_17ms",
-        "b2019_30z_180az_os_2ms",
-        "b2019_30z_180az_os_7ms",
-        "b2019_30z_180az_cd_12ms",
-        "b2019_30z_180az_cd_17ms",
-        "b2019_60z_0az_os_2ms",
-        "b2019_60z_0az_os_7ms",
-        "b2019_60z_0az_cd_12ms",
-        "b2019_60z_0az_cd_17ms",
-        "b2019_60z_45az_os_2ms",
-        "b2019_60z_45az_os_7ms",
-        "b2019_60z_45az_cd_12ms",
-        "b2019_60z_45az_cd_17ms",
-        "b2019_60z_90az_os_2ms",
-        "b2019_60z_90az_os_7ms",
-        "b2019_60z_90az_cd_12ms",
-        "b2019_60z_90az_cd_17ms",
-        "b2019_60z_135az_os_2ms",
-        "b2019_60z_135az_os_7ms",
-        "b2019_60z_135az_cd_12ms",
-        "b2019_60z_135az_cd_17ms",
-        "b2019_60z_180az_os_2ms",
-        "b2019_60z_180az_os_7ms",
-        "b2019_60z_180az_cd_12ms",
-        "b2019_60z_180az_cd_17ms",
-    ];
-    let job_idx = env::var("AWS_BATCH_JOB_ARRAY_INDEX")
-        .expect("AWS_BATCH_JOB_ARRAY_INDEX env var missing")
-        .parse::<usize>()
-        .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed");
+    /*let job_idx = env::var("AWS_BATCH_JOB_ARRAY_INDEX")
+    .expect("AWS_BATCH_JOB_ARRAY_INDEX env var missing")
+    .parse::<usize>()
+    .expect("AWS_BATCH_JOB_ARRAY_INDEX parsing failed");*/
     let fem_data_path = Path::new("/fsx").join("Baseline2020");
     // WIND LOADS
     let tic = Timer::tic();
-    println!("Loading wind loads from {:?}...",fem_data_path);
+    println!(
+        "Loading wind loads from {:?}...",
+        fem_data_path.join(cfd_case)
+    );
     //let n_sample = 20 * 1000;
-    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join(cfd_cases[job_idx]).join("wind_loads_2kHz.pkl"))?
-        .range(0.0, 400.0)
-        .decimate(2)
-        .truss()?
-        .m2_asm_topend()?
-        .m1_segments()?
-        .m1_cell()?
-        .m2_asm_reference_bodies()?
-        .build()?;
+    let mut wind_loading =
+        WindLoads::from_pickle(fem_data_path.join(cfd_case).join("wind_loads_2kHz.pkl"))?
+            .range(0.0, 400.0)
+            .decimate(2)
+            .truss()?
+            .m2_asm_topend()?
+            .m1_segments()?
+            .m1_cell()?
+            .m2_asm_reference_bodies()?
+            .build()?;
     tic.print_toc();
     // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
@@ -195,7 +138,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     tic.print_toc();
 
     // OUTPUTS SAVING
-    let mut f = File::create(fem_data_path.join("windloading.20210225_1447_MT_mount_v202102_ASM_wind2.pkl")).unwrap();
+    let mut f = File::create(
+        fem_data_path.join("windloading.20210225_1447_MT_mount_v202102_ASM_wind2.pkl"),
+    )
+    .unwrap();
     pkl::to_writer(
         &mut f,
         &[
@@ -212,4 +158,75 @@ fn main() -> Result<(), Box<dyn Error>> {
     )
     .unwrap();
     Ok(())
+}
+
+fn main() {
+    let cfd_cases = vec![
+        "b2019_0z_0az_os_2ms",
+        "b2019_0z_0az_os_7ms",
+        "b2019_0z_0az_cd_12ms",
+        "b2019_0z_0az_cd_17ms",
+        "b2019_0z_45az_os_2ms",
+        "b2019_0z_45az_os_7ms",
+        "b2019_0z_45az_cd_12ms",
+        "b2019_0z_45az_cd_17ms",
+        "b2019_0z_90az_os_2ms",
+        "b2019_0z_90az_os_7ms",
+        "b2019_0z_90az_cd_12ms",
+        "b2019_0z_90az_cd_17ms",
+        "b2019_0z_135az_os_2ms",
+        "b2019_0z_135az_os_7ms",
+        "b2019_0z_135az_cd_12ms",
+        "b2019_0z_135az_cd_17ms",
+        "b2019_0z_180az_os_2ms",
+        "b2019_0z_180az_os_7ms",
+        "b2019_0z_180az_cd_12ms",
+        "b2019_0z_180az_cd_17ms",
+        "b2019_30z_0az_os_2ms",
+        "b2019_30z_0az_os_7ms",
+        "b2019_30z_0az_cd_12ms",
+        "b2019_30z_0az_cd_17ms",
+        "b2019_30z_45az_os_2ms",
+        "b2019_30z_45az_os_7ms",
+        "b2019_30z_45az_cd_12ms",
+        "b2019_30z_45az_cd_17ms",
+        "b2019_30z_90az_os_2ms",
+        "b2019_30z_90az_os_7ms",
+        "b2019_30z_90az_cd_12ms",
+        "b2019_30z_90az_cd_17ms",
+        "b2019_30z_135az_os_2ms",
+        "b2019_30z_135az_os_7ms",
+        "b2019_30z_135az_cd_12ms",
+        "b2019_30z_135az_cd_17ms",
+        "b2019_30z_180az_os_2ms",
+        "b2019_30z_180az_os_7ms",
+        "b2019_30z_180az_cd_12ms",
+        "b2019_30z_180az_cd_17ms",
+        "b2019_60z_0az_os_2ms",
+        "b2019_60z_0az_os_7ms",
+        "b2019_60z_0az_cd_12ms",
+        "b2019_60z_0az_cd_17ms",
+        "b2019_60z_45az_os_2ms",
+        "b2019_60z_45az_os_7ms",
+        "b2019_60z_45az_cd_12ms",
+        "b2019_60z_45az_cd_17ms",
+        "b2019_60z_90az_os_2ms",
+        "b2019_60z_90az_os_7ms",
+        "b2019_60z_90az_cd_12ms",
+        "b2019_60z_90az_cd_17ms",
+        "b2019_60z_135az_os_2ms",
+        "b2019_60z_135az_os_7ms",
+        "b2019_60z_135az_cd_12ms",
+        "b2019_60z_135az_cd_17ms",
+        "b2019_60z_180az_os_2ms",
+        "b2019_60z_180az_os_7ms",
+        "b2019_60z_180az_cd_12ms",
+        "b2019_60z_180az_cd_17ms",
+    ];
+    cfd_cases
+        .into_par_iter()
+        .for_each(|cfd_case| match job(cfd_case) {
+            Ok(_) => println!("{} succeed!!!", cfd_case),
+            Err(_) => println!("{} failed!?!", cfd_case),
+        })
 }
