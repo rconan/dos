@@ -76,6 +76,7 @@ pub struct DiscreteStateSpace {
     zeta: Option<f64>,
     eigen_frequencies: Option<Vec<(usize, f64)>>,
     max_eigen_frequency: Option<f64>,
+    hankel_singular_values_threshold: Option<f64>,
 }
 impl From<fem::FEM> for DiscreteStateSpace {
     /// Creates a state space model builder from a FEM structure
@@ -249,6 +250,11 @@ impl DiscreteStateSpace {
             })
             .collect())
     }
+    /// Returns the Hankel singular value for a given eigen mode
+    pub fn hankel_singular_value(w: f64, z: f64, b: &[f64], c: &[f64]) -> f64 {
+        let norm_x = |x: &[f64]| x.iter().map(|x| x * x).sum::<f64>().sqrt();
+        0.25 * norm_x(b) * norm_x(c) / (w * z)
+    }
     /// Builds the state space discrete model
     pub fn build(self) -> Result<DiscreteModalSolver<Exponential>> {
         let tau = self.sampling.map_or(
@@ -318,19 +324,40 @@ impl DiscreteStateSpace {
             }
             None => fem.proportional_damping_vec,
         };
-        let state_space: Vec<_> = (0..n_modes)
-            .map(|k| {
-                let b = forces_2_modes.row(k);
-                let c = modes_2_nodes.column(k);
-                Exponential::from_second_order(
-                    tau,
-                    w[k],
-                    zeta[k],
-                    b.clone_owned().as_slice().to_vec(),
-                    c.as_slice().to_vec(),
-                )
-            })
-            .collect();
+        let state_space: Vec<_> = match self.hankel_singular_values_threshold {
+            Some(hsv_t) => (0..n_modes)
+                .filter_map(|k| {
+                    let b = forces_2_modes.row(k).clone_owned();
+                    let c = modes_2_nodes.column(k);
+                    let hsv =
+                        Self::hankel_singular_value(w[k], zeta[k], b.as_slice(), c.as_slice());
+                    if hsv > hsv_t {
+                        Some(Exponential::from_second_order(
+                            tau,
+                            w[k],
+                            zeta[k],
+                            b.as_slice().to_vec(),
+                            c.as_slice().to_vec(),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            None => (0..n_modes)
+                .map(|k| {
+                    let b = forces_2_modes.row(k).clone_owned();
+                    let c = modes_2_nodes.column(k);
+                    Exponential::from_second_order(
+                        tau,
+                        w[k],
+                        zeta[k],
+                        b.as_slice().to_vec(),
+                        c.as_slice().to_vec(),
+                    )
+                })
+                .collect(),
+        };
         Ok(DiscreteModalSolver {
             u: vec![0f64; forces_2_modes.ncols()],
             u_tags: dos_inputs,
