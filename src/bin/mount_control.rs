@@ -36,9 +36,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tic = Timer::tic();
     println!("Loading wind loads ...");
     //let n_sample = 20 * 1000;
-    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("wind_loads_2kHz.pkl"))?
+    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("b2019_0z_30az_os_7ms.wind_loads_1kHz_100-400s.pkl"))?
         .range(0.0, 20.0)
-        .decimate(2)
         .truss()?
         .m2_asm_topend()?
         .m1_segments()?
@@ -138,8 +137,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         &[
             data.time_series(m1_rbm),
             data.time_series(m2_rbm),
-            data.time_series(M1HPLC::new()),
-            data.time_series(M1CGFM::new()),
+            //data.time_series(M1HPLC::new()),
+            //data.time_series(M1CGFM::new()),
             //data.time_series(OSSAzEncoderAngle::new()),
             //data.time_series(OSSElEncoderAngle::new()),
             //data.time_series(OSSRotEncoderAngle::new()),
