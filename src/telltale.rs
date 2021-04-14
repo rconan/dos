@@ -1,12 +1,21 @@
-use crate::{io::IO, DOSError};
-use std::collections::BTreeMap;
+use crate::io::IO;
+use std::{collections::BTreeMap, fmt};
 
 #[derive(Debug)]
 pub enum TellTaleError {
     Step,
     Tale,
 }
-type Result<T> = std::result::Result<T, DOSError<TellTaleError>>;
+impl fmt::Display for TellTaleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Step => f.write_str("failed stepping through wind loads"),
+            Self::Tale => f.write_str("failed to log data"),
+        }
+    }
+}
+impl std::error::Error for TellTaleError {}
+type Result<T> = std::result::Result<T, TellTaleError>;
 
 pub struct TellTale {
     pub sampling_rate: f64,
@@ -21,7 +30,7 @@ impl TellTale {
     {
         self.next()
             .and(Some(self))
-            .ok_or_else(|| DOSError::Component(TellTaleError::Step))
+            .ok_or_else(|| TellTaleError::Step)
     }
     pub fn log(&mut self, tale: &IO<Vec<f64>>) -> Result<&mut Self> {
         self.index
@@ -29,7 +38,7 @@ impl TellTale {
                 self.entries.entry(i).or_default().push(tale.clone());
                 Some(())
             })
-            .ok_or(DOSError::Component(TellTaleError::Tale))?;
+            .ok_or(TellTaleError::Tale)?;
         Ok(self)
     }
     pub fn time_series(&self, key: IO<()>) -> IO<TimeSeries> {

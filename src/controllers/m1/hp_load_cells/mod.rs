@@ -1,7 +1,7 @@
 use crate::{
     build_controller, build_inputs, build_outputs, import_simulink,
     io::{jar, Tags},
-    IOTags, DOS, IO,
+    IOTags, DOS, IO, DOSError
 };
 
 import_simulink!(M1HPloadcells, U : (M1_HP_D,84,M1_HP_cmd,42), Y : (M1_HP_LC,42));
@@ -22,7 +22,7 @@ impl<'a> IOTags for Controller<'a> {
     }
 }
 impl<'a> DOS for Controller<'a> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSError> {
         if data.into_iter().fold(2, |mut a, io| {
             match io {
                 IO::OSSHardpointD { data: Some(values) } => {
@@ -47,7 +47,7 @@ impl<'a> DOS for Controller<'a> {
         {
             Ok(self)
         } else {
-            Err("Either mount drive controller OSSHardpointD or M1HPCmd not found".into())
+            Err(DOSError::Inputs("Either mount drive controller OSSHardpointD or M1HPCmd not found".into()))
         }
     }
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>> {

@@ -18,10 +18,10 @@
 //! The [`inputs`](crate::DOS::inputs) method of the [`DOS`] trait passes inputs data to the components whereas the [`outputs`](crate::DOS::outputs) method returns the component outputs.
 
 pub mod controllers;
+pub mod error;
 pub mod io;
 pub mod telltale;
 pub mod wind_loads;
-pub mod error;
 
 use error::DOSError;
 use fem;
@@ -43,9 +43,9 @@ pub trait DOS {
     /// Computes and returns a vector outputs from a model component
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>>;
     /// Passes a vector of input data to a model component
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>>;
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSError>;
     /// Updates the state of a model component for one time step
-    fn step(&mut self) -> Result<&mut Self, DOSError<()>>
+    fn step(&mut self) -> Result<&mut Self, DOSError>
     where
         Self: Sized + Iterator,
     {

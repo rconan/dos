@@ -46,8 +46,7 @@ use log;
 use nalgebra as na;
 use rayon::prelude::*;
 use serde_pickle as pickle;
-use std::fs::File;
-use std::path::Path;
+use std::{fmt, fs::File, path::Path};
 
 pub mod bilinear;
 #[doc(inline)]
@@ -61,9 +60,35 @@ pub enum StateSpaceError {
     FemInputs(Tags),
     FemOutputs(Tags),
     MissingArguments(String),
+    SamplingFrequency,
+    MissingIO(IOError<Vec<f64>>),
+}
+impl fmt::Display for StateSpaceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FemInputs(t) => write!(f, "no match for {:?} in FEM inputs", t),
+            Self::FemOutputs(t) => write!(f, "no match for {:?} in FEM outputs", t),
+            Self::MissingArguments(v) => write!(f, "argument {:?} is missing", v),
+            Self::SamplingFrequency => f.write_str("sampling frequency not set"),
+            Self::MissingIO(_) => f.write_str("DOS IO not found"),
+        }
+    }
+}
+impl From<IOError<Vec<f64>>> for StateSpaceError {
+    fn from(source: IOError<Vec<f64>>) -> Self {
+        Self::MissingIO(source)
+    }
+}
+impl std::error::Error for StateSpaceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::MissingIO(source) => Some(source),
+            _ => None,
+        }
+    }
 }
 
-type Result<T> = std::result::Result<T, DOSError<StateSpaceError>>;
+type Result<T> = std::result::Result<T, StateSpaceError>;
 type StateSpaceIO = Option<Vec<Tags>>;
 
 /// This structure is the state space model builder based on a builder pattern design
@@ -196,7 +221,7 @@ impl DiscreteStateSpace {
                 fem.inputs
                     .iter()
                     .find_map(|y| y.as_ref().and_then(|y| x.match_fem_inputs(y)))
-                    .ok_or(DOSError::Component(StateSpaceError::FemInputs(x.clone())))
+                    .ok_or(StateSpaceError::FemInputs(x.clone()))
             })
             .collect::<Result<Vec<Vec<IO>>>>()?
             .iter()
@@ -230,7 +255,7 @@ impl DiscreteStateSpace {
                 fem.outputs
                     .iter()
                     .find_map(|y| y.as_ref().and_then(|y| x.match_fem_outputs(y)))
-                    .ok_or(DOSError::Component(StateSpaceError::FemOutputs(x.clone())))
+                    .ok_or(StateSpaceError::FemOutputs(x.clone()))
             })
             .collect::<Result<Vec<Vec<IO>>>>()?
             .into_iter()
@@ -258,27 +283,18 @@ impl DiscreteStateSpace {
     /// Builds the state space discrete model
     pub fn build(self) -> Result<DiscreteModalSolver<Exponential>> {
         let tau = self.sampling.map_or(
-            Err(DOSError::Component(StateSpaceError::MissingArguments(
-                "sampling".to_owned(),
-            ))),
+            Err(StateSpaceError::MissingArguments("sampling".to_owned())),
             |x| Ok(1f64 / x),
         )?;
-        let mut fem = self.fem.map_or(
-            Err(DOSError::Component(StateSpaceError::MissingArguments(
-                "FEM".to_owned(),
-            ))),
-            Ok,
-        )?;
+        let mut fem = self
+            .fem
+            .map_or(Err(StateSpaceError::MissingArguments("FEM".to_owned())), Ok)?;
         let dos_inputs = self.u.map_or(
-            Err(DOSError::Component(StateSpaceError::MissingArguments(
-                "inputs".to_owned(),
-            ))),
+            Err(StateSpaceError::MissingArguments("inputs".to_owned())),
             Ok,
         )?;
         let dos_outputs = self.y.map_or(
-            Err(DOSError::Component(StateSpaceError::MissingArguments(
-                "outputs".to_owned(),
-            ))),
+            Err(StateSpaceError::MissingArguments("outputs".to_owned())),
             Ok,
         )?;
         Self::select_fem_io(&mut fem, &dos_inputs, &dos_outputs);
@@ -416,14 +432,11 @@ impl Iterator for DiscreteModalSolver<Exponential> {
 }
 
 impl DOS for DiscreteModalSolver<Exponential> {
-    fn inputs(
-        &mut self,
-        data: Vec<IO<Vec<f64>>>,
-    ) -> std::result::Result<&mut Self, Box<dyn std::error::Error>> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSError> {
         self.u = data
             .into_iter()
-            .map(|x| std::result::Result::<Vec<f64>, DOSError<IOError>>::from(x))
-            .collect::<std::result::Result<Vec<Vec<f64>>, DOSError<IOError>>>()?
+            .map(|x| std::result::Result::<Vec<f64>, IOError<Vec<f64>>>::from(x))
+            .collect::<std::result::Result<Vec<Vec<f64>>, IOError<Vec<f64>>>>()?
             .into_iter()
             .flatten()
             .collect();

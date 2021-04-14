@@ -2,15 +2,24 @@
 //!
 //! Provides the definitions for all the inputs and outputs used by DOS
 
-use super::{wind_loads, DOSError};
+use super::wind_loads;
 use core::fmt::Debug;
 use serde::Serialize;
 use std::ops::{AddAssign, Index, IndexMut, SubAssign};
+use std::fmt;
 
-#[derive(Clone, Debug)]
-pub enum IOError {
-    Missing(String),
+#[derive(Debug)]
+pub enum IOError<T> {
+    Missing(IO<T>),
 }
+impl<T: Debug> fmt::Display for IOError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Missing(v) => write!(f,"{:?} is missing",v),
+        }
+    }
+}
+impl<T: Debug> std::error::Error for IOError<T> {}
 
 macro_rules! build_io {
     ($($variant:ident),+) => {
@@ -70,14 +79,14 @@ macro_rules! build_io {
                 }
             }
         }
-        impl<T: Debug> From<IO<T>> for Result<T,DOSError<IOError>> {
+        impl<T: Debug> From<IO<T>> for Result<T,IOError<T>> {
             /// Converts a `IO<T>` into an `Option<T>`
             fn from(io: IO<T>) -> Self {
                 match io {
                     $(IO::$variant{ data: values} =>
                       values.ok_or_else(||
                                         //format!("{:?} data missing",IO::<T>::$variant{data: None}).into()
-                                        DOSError::Component(IOError::Missing(format!("{:?} data missing",IO::<T>::$variant{data: None})))
+                                        IOError::Missing(IO::<T>::$variant{data: None})
                     )),+
                 }
             }

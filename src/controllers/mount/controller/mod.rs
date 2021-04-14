@@ -1,7 +1,7 @@
 use crate::{
     build_controller, build_inputs, build_outputs, import_simulink,
     io::{jar, Tags},
-    IOTags, DOS, IO,
+    DOSError, IOTags, DOS, IO,
 };
 
 import_simulink!(MountControl0, U : (Mount_SP,3,Mount_FB,20), Y : (Mount_cmd,3));
@@ -40,7 +40,7 @@ impl<'a> IOTags for Controller<'a> {
     }
 }
 impl<'a> DOS for Controller<'a> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, Box<dyn std::error::Error>> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSError> {
         if data.into_iter().fold(3, |mut a, io| {
             match io {
                 IO::OSSAzDriveD { data: Some(values) } => {
@@ -71,7 +71,7 @@ impl<'a> DOS for Controller<'a> {
         {
             Ok(self)
         } else {
-            Err("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".into())
+            Err(DOSError::Inputs("Either mount controller controller OSSAzDriveD, OSSElDriveD or OSSGIRDriveD not found".into()))
         }
     }
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>> {

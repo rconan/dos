@@ -16,20 +16,48 @@ use super::{
 use serde;
 use serde::Deserialize;
 use serde_pickle as pkl;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
+use std::{fmt, fs::File, io, io::BufReader, path::Path};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum WindLoadsError {
     Len,
     Empty,
-    FileNotFound,
-    PickleRead,
+    FileNotFound(io::Error),
+    PickleRead(serde_pickle::Error),
     Outputs,
 }
+impl fmt::Display for WindLoadsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Len => f.write_str("couldn't get the number of sample in the time series"),
+            Self::Empty => f.write_str("no data available"),
+            Self::FileNotFound(e) => write!(f, "wind loads data file not found: {}", e),
+            Self::PickleRead(e) => write!(f, "cannot read wind loads data file: {}", e),
+            Self::Outputs => f.write_str(""),
+        }
+    }
+}
+impl From<std::io::Error> for WindLoadsError {
+    fn from(e: std::io::Error) -> Self {
+        Self::FileNotFound(e)
+    }
+}
+impl From<serde_pickle::Error> for WindLoadsError {
+    fn from(e: serde_pickle::Error) -> Self {
+        Self::PickleRead(e)
+    }
+}
+impl std::error::Error for WindLoadsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::FileNotFound(source) => Some(source),
+            Self::PickleRead(source) => Some(source),
+            _ => None,
+        }
+    }
+}
 
-type Result<T> = std::result::Result<T, DOSError<WindLoadsError>>;
+type Result<T> = std::result::Result<T, WindLoadsError>;
 type Outputs = Option<std::vec::IntoIter<Vec<f64>>>;
 
 macro_rules! loads {
@@ -127,7 +155,7 @@ impl WindLoads {
         self.loads
             .iter()
             .find_map(|x| x.as_ref().and_then(|x| Some(x.len())))
-            .ok_or(DOSError::Component(WindLoadsError::Len))
+            .ok_or(WindLoadsError::Len)
     }
     pub fn range(mut self, t_min: f64, t_max: f64) -> Self {
         let min_index = self.time.iter().position(|t| *t >= t_min).unwrap_or(0);
@@ -159,16 +187,12 @@ impl WindLoads {
                 .loads
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.ndata(x, *n)))
-                .map_or(Err(DOSError::Component(WindLoadsError::Empty)), |x| {
-                    Ok(Some(x))
-                }),
+                .map_or(Err(WindLoadsError::Empty), |x| Ok(Some(x))),
             None => self
                 .loads
                 .iter()
                 .find_map(|x| x.as_ref().and_then(|x| io.data(x)))
-                .map_or(Err(DOSError::Component(WindLoadsError::Empty)), |x| {
-                    Ok(Some(x))
-                }),
+                .map_or(Err(WindLoadsError::Empty), |x| Ok(Some(x))),
         }
     }
     /// Set the number of time sample
@@ -297,10 +321,7 @@ impl IOTags for WindLoading {
     }
 }
 impl DOS for WindLoading {
-    fn inputs(
-        &mut self,
-        _: Vec<IO<Vec<f64>>>,
-    ) -> std::result::Result<&mut Self, Box<dyn std::error::Error>> {
+    fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSError> {
         unimplemented!()
     }
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>> {
