@@ -23,7 +23,7 @@ pub mod io;
 pub mod telltale;
 pub mod wind_loads;
 
-use error::DOSError;
+pub use error::DOSError;
 use fem;
 use io::IO;
 #[doc(inline)]
@@ -57,7 +57,7 @@ pub trait DOS {
     fn in_step_out(
         &mut self,
         data: Vec<IO<Vec<f64>>>,
-    ) -> Result<Option<Vec<IO<Vec<f64>>>>, Box<dyn std::error::Error>>
+    ) -> Result<Option<Vec<IO<Vec<f64>>>>, DOSError>
     where
         Self: Sized + Iterator,
     {

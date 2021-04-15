@@ -1,5 +1,8 @@
-use std::{fmt,io};
-use super::io::IOError;
+use super::{
+    controllers::state_space::StateSpaceError, io::IOError, telltale::TellTaleError,
+    wind_loads::WindLoadsError,
+};
+use std::{fmt, io};
 
 /// The main types of DOS errors
 #[derive(Debug)]
@@ -10,7 +13,11 @@ pub enum DOSError {
     Step,
     File(io::Error),
     Pickle(serde_pickle::Error),
-    IO(IOError<Vec<f64>>)
+    IO(IOError<Vec<f64>>),
+    WindLoads(WindLoadsError),
+    StateSpace(StateSpaceError),
+    TellTale(TellTaleError),
+    Other(String),
 }
 
 impl From<std::io::Error> for DOSError {
@@ -31,17 +38,50 @@ impl From<IOError<Vec<f64>>> for DOSError {
     }
 }
 
+impl From<WindLoadsError> for DOSError {
+    fn from(e: WindLoadsError) -> Self {
+        Self::WindLoads(e)
+    }
+}
+
+impl From<StateSpaceError> for DOSError {
+    fn from(e: StateSpaceError) -> Self {
+        Self::StateSpace(e)
+    }
+}
+
+impl From<TellTaleError> for DOSError {
+    fn from(e: TellTaleError) -> Self {
+        Self::TellTale(e)
+    }
+}
+
+impl From<String> for DOSError {
+    fn from(e: String) -> Self {
+        Self::Other(e)
+    }
+}
+impl From<&str> for DOSError {
+    fn from(e: &str) -> Self {
+        Self::Other(e.to_owned())
+    }
+}
+
 impl fmt::Display for DOSError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use DOSError::*;
         match self {
-            Inputs(v) => write!(f, "DOS Inputs: {}",v),
+            Inputs(v) => write!(f, "DOS Inputs: {}", v),
             Outputs => write!(f, "DOS Outputs failed"),
             Step => write!(f, "DOS Step failed"),
             //Component(component) => component.fmt(f),
             File(error) => error.fmt(f),
             Pickle(error) => error.fmt(f),
             IO(error) => error.fmt(f),
+            WindLoads(error) => error.fmt(f),
+            StateSpace(error) => error.fmt(f),
+            TellTale(error) => error.fmt(f),
+            Other(error) => error.fmt(f),
         }
     }
 }
@@ -52,6 +92,9 @@ impl std::error::Error for DOSError {
             Self::File(source) => Some(source),
             Self::Pickle(source) => Some(source),
             Self::IO(source) => Some(source),
+            Self::WindLoads(source) => Some(source),
+            Self::StateSpace(source) => Some(source),
+            Self::TellTale(source) => Some(source),
             _ => None,
         }
     }

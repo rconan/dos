@@ -2,12 +2,12 @@ use dos::{
     controllers::{m1, mount::pdr as mount, state_space::DiscreteStateSpace},
     io::jar::*,
     io::IO,
-    DataLogging, WindLoads, DOS,
+    DOSError, DataLogging, WindLoads, DOS,
 };
 use fem::FEM;
 use serde_pickle as pkl;
 use simple_logger::SimpleLogger;
-use std::error::Error;
+//use std::error::Error;
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
@@ -29,21 +29,23 @@ impl Timer {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), DOSError> {
     SimpleLogger::new().init().unwrap();
     let fem_data_path = Path::new("data").join("20210225_1447_MT_mount_v202102_ASM_wind2");
     // WIND LOADS
     let tic = Timer::tic();
     println!("Loading wind loads ...");
     //let n_sample = 20 * 1000;
-    let mut wind_loading = WindLoads::from_pickle(fem_data_path.join("b2019_0z_30az_os_7ms.wind_loads_1kHz_100-400s.pkl"))?
-        .range(0.0, 20.0)
-        .truss()?
-        .m2_asm_topend()?
-        .m1_segments()?
-        .m1_cell()?
-        .m2_asm_reference_bodies()?
-        .build()?;
+    let mut wind_loading = WindLoads::from_pickle(
+        fem_data_path.join("b2019_0z_30az_os_7ms.wind_loads_1kHz_100-400s.pkl"),
+    )?
+    .range(0.0, 20.0)
+    .truss()?
+    .m2_asm_topend()?
+    .m1_segments()?
+    .m1_cell()?
+    .m2_asm_reference_bodies()?
+    .build()?;
     tic.print_toc();
     // MOUNT CONTROL
     let mut mnt_drives = mount::drives::Controller::new();
