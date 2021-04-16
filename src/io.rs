@@ -245,6 +245,12 @@ build_io!(
     M1actuatorsSegment5,
     M1actuatorsSegment6,
     M1ActuatorsSegment7,
+    // M1 fans
+    OSSM1FansLcl6F,
+    OSSM1FansLcl6D,
+    // Payloads
+    OSSPayloads6F,
+    OSSPayloads6D,
     // Mount Drives
     OSSAzDriveF,  // azimuth drive
     OSSElDriveF,  // elevation drive
@@ -278,6 +284,8 @@ build_io!(
     MCM2CP6D,  // Cold plates
     MCM2RB6D,  // Reference bodies
     MCM2Lcl6D, // Face sheets
+    MCASMCOG6F,
+    MCASMCOG6D,
     //
     MCM2TE6F,
     MCM2TEIF6F,
@@ -344,6 +352,7 @@ io_match_fem!(
     inputs:
         (
             MCM2RB6F,
+            MCASMCOG6F,
             MCM2TE6F,
             OSSTopEnd6F,
             OSSTruss6F,
@@ -358,7 +367,9 @@ io_match_fem!(
             OSSHarpointDeltaF,
             OSSAzDriveTorque,
             OSSElDriveTorque,
-            OSSRotDriveTorque
+            OSSRotDriveTorque,
+            OSSM1FansLcl6F,
+            OSSPayloads6F
         ),
     outputs:
         (
@@ -371,7 +382,11 @@ io_match_fem!(
             OSSAzEncoderAngle,
             OSSElEncoderAngle,
             OSSRotEncoderAngle,
-            MCM2RB6D
+            MCM2RB6D,
+            MCASMCOG6D,
+            MCM2TE6D,
+            OSSM1FansLcl6D,
+            OSSPayloads6D
         )
 );
 io_match_wind_loads!(
