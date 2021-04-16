@@ -201,10 +201,8 @@ impl WindLoads {
         let n = self.len()?;
         assert!(
             n_sample <= n,
-            format!(
-                "n_sample cannot be greater than the number of sample ({})",
-                n
-            )
+            "n_sample cannot be greater than the number of sample ({})",
+            n
         );
         Ok(Self {
             n_sample: Some(if n_sample <= n { n_sample } else { n }),
