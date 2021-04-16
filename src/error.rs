@@ -2,6 +2,7 @@ use super::{
     controllers::state_space::StateSpaceError, io::IOError, telltale::TellTaleError,
     wind_loads::WindLoadsError,
 };
+use fem::fem::FEMError;
 use std::{fmt, io};
 
 /// The main types of DOS errors
@@ -17,6 +18,7 @@ pub enum DOSError {
     WindLoads(WindLoadsError),
     StateSpace(StateSpaceError),
     TellTale(TellTaleError),
+    FEM(FEMError),
     Other(String),
 }
 
@@ -56,6 +58,12 @@ impl From<TellTaleError> for DOSError {
     }
 }
 
+impl From<FEMError> for DOSError {
+    fn from(e: FEMError) -> Self {
+        Self::FEM(e)
+    }
+}
+
 impl From<String> for DOSError {
     fn from(e: String) -> Self {
         Self::Other(e)
@@ -81,6 +89,7 @@ impl fmt::Display for DOSError {
             WindLoads(error) => error.fmt(f),
             StateSpace(error) => error.fmt(f),
             TellTale(error) => error.fmt(f),
+            FEM(error) => error.fmt(f),
             Other(error) => error.fmt(f),
         }
     }
@@ -95,6 +104,7 @@ impl std::error::Error for DOSError {
             Self::WindLoads(source) => Some(source),
             Self::StateSpace(source) => Some(source),
             Self::TellTale(source) => Some(source),
+            Self::FEM(source) => Some(source),
             _ => None,
         }
     }
