@@ -16,6 +16,7 @@ rayon = "1.5.0"
 fem = { git = "https://github.com/rconan/fem.git", branch = "main" }
 log = "0.4.14"
 simple_logger = "1.11.0"
+dosio = { git = "https://github.com/rconan/dosio.git", branch = "main" }
 
 [build-dependencies]
 cc = "1.0.67"

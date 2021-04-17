@@ -19,17 +19,22 @@
 
 pub mod controllers;
 pub mod error;
-pub mod io;
 pub mod telltale;
 pub mod wind_loads;
 
 pub use error::DOSError;
 use fem;
-use io::IO;
 #[doc(inline)]
 pub use telltale::DataLogging;
 #[doc(inline)]
 pub use wind_loads::{WindLoading, WindLoads};
+
+pub mod match_io;
+pub mod io {
+    pub use dosio::io::*;
+    pub use super::match_io::{MatchFEM,MatchWindLoads};
+}
+pub use io::IO;
 
 /// Used to get the list of inputs or outputs
 pub trait IOTags {

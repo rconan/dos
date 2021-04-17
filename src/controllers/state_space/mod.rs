@@ -39,7 +39,7 @@
 
 use crate::fem;
 use crate::{
-    io::{IOError, Tags},
+    io::{IOError, MatchFEM, Tags},
     DOSError, IOTags, DOS, IO,
 };
 use log;

@@ -10,7 +10,7 @@
 //!  - the top-end
 
 use super::{
-    io::{jar, Tags},
+    io::{jar, MatchWindLoads, Tags},
     DOSError, IOTags, DOS, IO,
 };
 use serde;

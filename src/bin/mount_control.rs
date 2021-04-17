@@ -56,7 +56,7 @@ fn main() -> Result<(), DOSError> {
     let mut m1_ctrl = m1::cg_controller::Controller::new();
 
     // FEM
-    let fem_data_path = Path::new("data").join("20210326_1803_MT_mount_v202102_M1_fans_OSSOnly");
+    //let fem_data_path = Path::new("data").join("20210326_1803_MT_mount_v202102_M1_fans_OSSOnly");
     let sampling_rate = 1e3;
     let m1_rbm = OSSM1Lcl::new();
     let m2_rbm = MCM2RB6D::new();
@@ -68,7 +68,7 @@ fn main() -> Result<(), DOSError> {
     .dump_eigen_frequencies(fem_data_path.join("eigen_frequencies.pkl"))
     .sampling(sampling_rate)
     .proportional_damping(2. / 100.)
-    //.max_eigen_frequency(75.0)
+    .max_eigen_frequency(75.0)
     .inputs_from(&wind_loading)
     .inputs_from(&mnt_drives)
     .outputs(vec![m1_rbm.clone(), m2_rbm.clone()])
