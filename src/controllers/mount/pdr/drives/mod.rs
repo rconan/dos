@@ -1,7 +1,7 @@
 use crate::{
     build_controller, build_inputs, build_outputs, import_simulink,
     io::{jar, Tags},
-    IOTags, DOS, IO,DOSError
+    DOSIOSError, IOTags, DOS, IO,
 };
 
 import_simulink!(Mount_Drv_PDR2021, U : (Mount_cmd,3,Mount_pos,14), Y : (Mount_F,20));
@@ -62,7 +62,7 @@ impl<'a> IOTags for Controller<'a> {
     }
 }
 impl<'a> DOS for Controller<'a> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSError> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSIOSError> {
         if data.into_iter().fold(4, |mut a, io| {
             match io {
                 IO::MountCmd { data: Some(values) } => {
@@ -99,7 +99,7 @@ impl<'a> DOS for Controller<'a> {
         {
             Ok(self)
         } else {
-            Err(DOSError::Inputs("Either mount drive controller MountCmd, OSSAzEncoderAngle, OSSElEncoderAngle or OSSRotEncoderAngle not found".into()))
+            Err(DOSIOSError::Inputs("Either mount drive controller MountCmd, OSSAzEncoderAngle, OSSElEncoderAngle or OSSRotEncoderAngle not found".into()))
         }
     }
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>> {

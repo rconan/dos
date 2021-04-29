@@ -11,7 +11,7 @@
 
 use super::{
     io::{jar, MatchWindLoads, Tags},
-    DOSError, IOTags, DOS, IO,
+    DOSIOSError, IOTags, DOS, IO,
 };
 use serde;
 use serde::Deserialize;
@@ -25,6 +25,7 @@ pub enum WindLoadsError {
     FileNotFound(io::Error),
     PickleRead(serde_pickle::Error),
     Outputs,
+    Inputs,
 }
 impl fmt::Display for WindLoadsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -34,6 +35,7 @@ impl fmt::Display for WindLoadsError {
             Self::FileNotFound(e) => write!(f, "wind loads data file not found: {}", e),
             Self::PickleRead(e) => write!(f, "cannot read wind loads data file: {}", e),
             Self::Outputs => f.write_str(""),
+            Self::Inputs => f.write_str("WindLoading takes no inputs"),
         }
     }
 }
@@ -319,8 +321,8 @@ impl IOTags for WindLoading {
     }
 }
 impl DOS for WindLoading {
-    fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSError> {
-        unimplemented!()
+    fn inputs(&mut self, _: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSIOSError> {
+        Err(DOSIOSError::Inputs((WindLoadsError::Inputs).into()))
     }
     fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>> {
         self.loads

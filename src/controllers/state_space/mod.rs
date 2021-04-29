@@ -40,7 +40,7 @@
 use crate::fem;
 use crate::{
     io::{IOError, MatchFEM, Tags},
-    DOSError, IOTags, DOS, IO,
+    DOSIOSError, IOTags, DOS, IO,
 };
 use log;
 use nalgebra as na;
@@ -432,11 +432,14 @@ impl Iterator for DiscreteModalSolver<Exponential> {
 }
 
 impl DOS for DiscreteModalSolver<Exponential> {
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSError> {
+    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> std::result::Result<&mut Self, DOSIOSError> {
         self.u = data
             .into_iter()
-            .map(|x| std::result::Result::<Vec<f64>, IOError<Vec<f64>>>::from(x))
-            .collect::<std::result::Result<Vec<Vec<f64>>, IOError<Vec<f64>>>>()?
+            .map(|x| {
+                std::result::Result::<Vec<f64>, IOError<Vec<f64>>>::from(x)
+                    .map_err(|e| DOSIOSError::Inputs(e.into()))
+            })
+            .collect::<std::result::Result<Vec<Vec<f64>>, DOSIOSError>>()?
             .into_iter()
             .flatten()
             .collect();

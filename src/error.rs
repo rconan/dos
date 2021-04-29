@@ -1,12 +1,11 @@
 use super::{
     controllers::state_space::StateSpaceError, io::IOError, telltale::TellTaleError,
-    wind_loads::WindLoadsError,
+    wind_loads::WindLoadsError, DOSIOSError
 };
 use fem::fem::FEMError;
 use std::{fmt, io};
 
 /// The main types of DOS errors
-#[derive(Debug)]
 pub enum DOSError {
     //Component(T),
     Outputs,
@@ -20,6 +19,7 @@ pub enum DOSError {
     TellTale(TellTaleError),
     FEM(FEMError),
     Other(String),
+    DOSIOS(DOSIOSError),
 }
 
 impl From<std::io::Error> for DOSError {
@@ -64,6 +64,12 @@ impl From<FEMError> for DOSError {
     }
 }
 
+impl From<DOSIOSError> for DOSError {
+    fn from(e: DOSIOSError) -> Self {
+        Self::DOSIOS(e)
+    }
+}
+
 impl From<String> for DOSError {
     fn from(e: String) -> Self {
         Self::Other(e)
@@ -91,8 +97,14 @@ impl fmt::Display for DOSError {
             TellTale(error) => error.fmt(f),
             FEM(error) => error.fmt(f),
             Other(error) => error.fmt(f),
+            DOSIOS(error) => error.fmt(f),
         }
     }
+}
+impl fmt::Debug for DOSError {
+		fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+			  <DOSError as std::fmt::Display>::fmt(self, f)
+		}
 }
 
 impl std::error::Error for DOSError {
@@ -105,6 +117,7 @@ impl std::error::Error for DOSError {
             Self::StateSpace(source) => Some(source),
             Self::TellTale(source) => Some(source),
             Self::FEM(source) => Some(source),
+            Self::DOSIOS(source) => Some(source),
             _ => None,
         }
     }
