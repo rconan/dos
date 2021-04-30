@@ -21,7 +21,6 @@ pub mod controllers;
 pub mod error;
 pub mod telltale;
 pub mod wind_loads;
-pub mod dos_ios_error;
 
 pub use error::DOSError;
 use fem;
@@ -32,11 +31,11 @@ pub use wind_loads::{WindLoading, WindLoads};
 
 pub mod match_io;
 pub mod io {
+    pub use super::match_io::{MatchFEM, MatchWindLoads};
     pub use dosio::io::*;
-    pub use super::match_io::{MatchFEM,MatchWindLoads};
 }
+pub use dosio::{DOSIOSError, DOS};
 pub use io::IO;
-pub use dos_ios_error::DOSIOSError;
 
 /// Used to get the list of inputs or outputs
 pub trait IOTags {
@@ -44,30 +43,4 @@ pub trait IOTags {
     fn outputs_tags(&self) -> Vec<IO<()>>;
     /// Return the list of inputs
     fn inputs_tags(&self) -> Vec<IO<()>>;
-}
-/// Used to glue together the different components of an end-to-end model
-pub trait DOS {
-    /// Computes and returns a vector outputs from a model component
-    fn outputs(&mut self) -> Option<Vec<IO<Vec<f64>>>>;
-    /// Passes a vector of input data to a model component
-    fn inputs(&mut self, data: Vec<IO<Vec<f64>>>) -> Result<&mut Self, DOSIOSError>;
-    /// Updates the state of a model component for one time step
-    fn step(&mut self) -> Result<&mut Self, DOSIOSError>
-    where
-        Self: Sized + Iterator,
-    {
-        self.next().and(Some(self)).ok_or_else(|| "DOS next step has issued None".into()).map_err(|e| DOSIOSError::Step(e))
-    }
-    /// Combines `inputs`, `step` and `outputs` in a single method
-    ///
-    /// This is equivalent to `.inputs(...)?.step()?.outputs()?`
-    fn in_step_out(
-        &mut self,
-        data: Vec<IO<Vec<f64>>>,
-    ) -> Result<Option<Vec<IO<Vec<f64>>>>, DOSError>
-    where
-        Self: Sized + Iterator,
-    {
-        Ok(self.inputs(data)?.step()?.outputs())
-    }
 }
